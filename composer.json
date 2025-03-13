@@ -1,0 +1,43 @@
+{
+    "name": "sentry/sentry-agent",
+    "type": "library",
+    "description": "PHP SDK Agent for Sentry (https://sentry.io)",
+    "homepage": "https://sentry.io",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Sentry",
+            "email": "accounts@sentry.io"
+        }
+    ],
+    "require": {
+        "php": "^7.2|^8",
+        "clue/mq-react": "^1.6",
+        "react/async": "^4.3",
+        "react/http": "^1.11",
+        "react/socket": "^1.16",
+        "sentry/sentry": "^4.10"
+    },
+    "autoload": {
+        "psr-4": {
+            "Sentry\\Agent\\": "src/"
+        }
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.70",
+        "phpstan/phpstan": "^2.1"
+    },
+    "scripts": {
+        "check": [
+            "@cs-check",
+            "@phpstan"
+        ],
+        "cs-check": "vendor/bin/php-cs-fixer fix --verbose --diff --dry-run",
+        "cs-fix": "vendor/bin/php-cs-fixer fix --verbose --diff",
+        "phpstan": "vendor/bin/phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "prefer-stable": true
+}
