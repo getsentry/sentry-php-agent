@@ -52,23 +52,34 @@ class Server
         $socket = new SocketServer($this->uri);
 
         $socket->on('connection', function (ConnectionInterface $connection): void {
+            // @TODO: Right now the envelope is never checked for anything, the Envelope class might throw an exception if it fails to parse out the header in the future?
+            //        Parsing the header also allows us to have a bit more information and we could use it's information to accept envelopes destined for multiple DSNs instead of just the configured one.
+
+            // @TODO: We should probably also check if the envelope is empty and if so, we should not call the onEnvelopeReceived callback.
+
+            $messageLength = 0;
             $connectionBuffer = '';
 
-            $connection->on('data', function (string $chunk) use (&$connectionBuffer) {
+            $connection->on('data', function (string $chunk) use (&$connectionBuffer, &$messageLength) {
                 $connectionBuffer .= $chunk;
+
+                while (\strlen($connectionBuffer) >= 4) {
+                    if ($messageLength === 0) {
+                        $messageLength = unpack('N', substr($connectionBuffer, 0, 4))[1];
+                    }
+
+                    if (\strlen($connectionBuffer) < $messageLength) {
+                        break;
+                    }
+
+                    \call_user_func($this->onEnvelopeReceived, new Envelope(substr($connectionBuffer, 4, $messageLength)));
+
+                    $connectionBuffer = substr($connectionBuffer, $messageLength);
+                    $messageLength = 0;
+                }
             });
 
-            $connection->on('end', function () use (&$connectionBuffer) {
-                // @TODO: Right now the envelope is never checked for anything, the Envelope class might throw an exception if it fails to parse out the header in the future?
-                //        Parsing the header also allows us to have a bit more information and we could use it's information to accept envelopes destined for multiple DSNs instead of just the configured one.
-
-                // @TODO: We should probably also check if the envelope is empty and if so, we should not call the onEnvelopeReceived callback.
-
-                // @TODO: We should also see what happens if a client send multiple envelopes in a single "request" and if we need to handle that.
-                //        This would save a client needing to build up a TCP connection for every envelope instead of re-using an open socket.
-
-                \call_user_func($this->onEnvelopeReceived, new Envelope($connectionBuffer));
-            });
+            $connection->on('end', function () {});
 
             $connection->on('error', function (\Throwable $exception) use (&$connectionBuffer) {
                 \call_user_func($this->onConnectionError, $exception);
