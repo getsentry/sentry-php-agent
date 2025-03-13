@@ -13,7 +13,6 @@
     "require": {
         "php": "^7.2|^8",
         "clue/mq-react": "^1.6",
-        "react/async": "^4.3",
         "react/http": "^1.11",
         "react/socket": "^1.16",
         "sentry/sentry": "^4.10"
