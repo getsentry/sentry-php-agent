@@ -26,7 +26,7 @@ $upstreamConcurrency = 10;
 $queueLimit = 1000;
 
 // The DSN where we are forwarding the envelopes to
-$dsn = Dsn::createFromString('https://5b30edd9b26444c9b185f7a0a02d3c5d@o9.ingest.observ.app/22');
+$dsn = Dsn::createFromString('https://8b9ee30b3d9541d3b38d2fa6ddf9c73b@o447951.ingest.us.sentry.io/5572016');
 
 Log::info("Starting Sentry agent, listening on {$listenAddress}...");
 
