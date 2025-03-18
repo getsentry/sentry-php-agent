@@ -1,3 +1,4 @@
+#!/usr/bin/env php
 <?php
 
 declare(strict_types=1);
@@ -8,34 +9,46 @@ use Sentry\Agent\Envelope;
 use Sentry\Agent\EnvelopeForwarder;
 use Sentry\Agent\EnvelopeQueue;
 use Sentry\Agent\Server;
-use Sentry\Dsn;
 
-require __DIR__ . '/../vendor/autoload.php';
+// ./sentry-agent [listen_address] [listen_port] [upstream_timeout] [upstream_concurrency] [queue_limit]
+
+require $_composer_autoload_path ?? __DIR__ . '/vendor/autoload.php';
 
 // @TODO: "sentryagent" with a 5 in front, it's a unused "user port": https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=5148
 //        Maybe there is a better way to select a port to use but for now this is fine.
-$listenAddress = '127.0.0.1:5148';
+$listenAddress = ($argv[1] ?? '127.0.0.1') . ':' . ($argv[2] ?? 5148);
 
-// Configures the timeout for the connection to Sentry, since we are running in an agent we can afford a little longer timeout then we would normally do in a regular PHP context
-$upstreamTimeout = 2;
+// Configures the timeout for the connection to Sentry (in seconds), since we are running in an agent we can afford a little longer timeout then we would normally do in a regular PHP context
+$upstreamTimeout = (float) ($argv[3] ?? 2.0);
 
 // Configures the amount of concurrent requests the agent is allowed to make towards Sentry
-$upstreamConcurrency = 10;
+$upstreamConcurrency = (int) ($argv[3] ?? 10);
 
 // How many envelopes we want to keep in memory before we start dropping them
-$queueLimit = 1000;
+$queueLimit = (int) ($argv[4] ?? 1000);
 
-// The DSN where we are forwarding the envelopes to
-$dsn = Dsn::createFromString('https://8b9ee30b3d9541d3b38d2fa6ddf9c73b@o447951.ingest.us.sentry.io/5572016');
-
-Log::info("Starting Sentry agent, listening on {$listenAddress}...");
+Log::info("=> Starting Sentry agent, listening on {$listenAddress} with config:");
+Log::info(" > upstream timeout: {$upstreamTimeout}");
+Log::info(" > upstream concurrency: {$upstreamConcurrency}");
+Log::info(" > queue limit: {$queueLimit}");
 
 $forwarder = new EnvelopeForwarder(
-    $dsn,
     $upstreamTimeout,
     function (Psr\Http\Message\ResponseInterface $response) {
         if ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300) {
-            Log::info('Envelope sent successfully.');
+            if ($response->getStatusCode() === 200) {
+                $responseBody = json_decode($response->getBody()->getContents(), true);
+
+                $eventId = is_array($responseBody) ? $responseBody['id'] ?? null : null;
+
+                if (!is_string($eventId)) {
+                    $eventId = '<unknown>';
+                }
+
+                Log::info("Envelope sent successfully (ID: {$eventId}, http status: {$response->getStatusCode()}).");
+            } else {
+                Log::info("Envelope sent successfully (http status: {$response->getStatusCode()}).");
+            }
         } else {
             Log::error("Envelope send error: {$response->getStatusCode()} {$response->getReasonPhrase()}");
         }
@@ -62,7 +75,7 @@ $server = new Server(
         Log::error("Incoming connection error: {$exception->getMessage()}");
     },
     function (Envelope $envelope) use ($queue) {
-        Log::info('Envelope received, forwarding to Sentry...');
+        Log::info('Envelope received, queueing forward to Sentry...');
 
         $queue->enqueue($envelope);
     }

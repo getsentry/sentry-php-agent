@@ -26,6 +26,9 @@
         "friendsofphp/php-cs-fixer": "^3.70",
         "phpstan/phpstan": "^2.1"
     },
+    "bin": [
+        "sentry-agent"
+    ],
     "scripts": {
         "check": [
             "@cs-check",

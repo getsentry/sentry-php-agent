@@ -9,6 +9,9 @@ use React\Http\Browser;
 use React\Promise\PromiseInterface;
 use Sentry\Dsn;
 
+/**
+ * @internal
+ */
 class EnvelopeForwarder
 {
     /**
@@ -24,12 +27,12 @@ class EnvelopeForwarder
     /**
      * The version of the SDK.
      */
-    public const VERSION = '1.0.0';
+    public const VERSION = '0.1.0';
 
     /**
-     * @var Dsn
+     * @var float
      */
-    private $dsn;
+    private $timeout;
 
     /**
      * @var callable(ResponseInterface): void
@@ -42,21 +45,14 @@ class EnvelopeForwarder
     private $onEnvelopeError;
 
     /**
-     * @var Browser
-     */
-    private $browser;
-
-    /**
      * @param callable(ResponseInterface): void $onEnvelopeSent  called when the envelope is sent
      * @param callable(\Throwable): void        $onEnvelopeError called when the envelope fails to send
      */
-    public function __construct(Dsn $dsn, int $timeout, callable $onEnvelopeSent, callable $onEnvelopeError)
+    public function __construct(float $timeout, callable $onEnvelopeSent, callable $onEnvelopeError)
     {
-        $this->dsn = $dsn;
+        $this->timeout = $timeout;
         $this->onEnvelopeSent = $onEnvelopeSent;
         $this->onEnvelopeError = $onEnvelopeError;
-
-        $this->browser = (new Browser())->withTimeout($timeout);
     }
 
     /**
@@ -64,15 +60,23 @@ class EnvelopeForwarder
      */
     public function forward(Envelope $envelope): PromiseInterface
     {
+        $dsn = $envelope->getDsn();
+
+        if ($dsn === null) {
+            throw new \RuntimeException('The envelope does not contain a DSN.');
+        }
+
+        $dsn = Dsn::createFromString($dsn);
+
         $authHeader = [
             'sentry_version=' . self::PROTOCOL_VERSION,
             'sentry_client=' . self::IDENTIFIER . '/' . self::VERSION,
-            'sentry_key=' . $this->dsn->getPublicKey(),
+            'sentry_key=' . $dsn->getPublicKey(),
         ];
 
         // @TODO: Implement any number of missing options like the user-agent, encoding, proxy etc.
 
-        return $this->browser->post($this->dsn->getEnvelopeApiEndpointUrl(), [
+        return (new Browser())->withTimeout($this->timeout)->post($dsn->getEnvelopeApiEndpointUrl(), [
             'User-Agent' => self::IDENTIFIER . '/' . self::VERSION,
             'Content-Type' => 'application/x-sentry-envelope',
             'X-Sentry-Auth' => 'Sentry ' . implode(', ', $authHeader),

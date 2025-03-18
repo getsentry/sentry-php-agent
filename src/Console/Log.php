@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Sentry\Agent\Console;
 
+/**
+ * @internal
+ */
 class Log
 {
     private const LEVEL_INFO = 'INFO';
