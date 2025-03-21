@@ -33,7 +33,7 @@ The agent is configured as a custom HTTP client for the [PHP](https://github.com
 
 ```php
 Sentry\init([
-    'dsn' => 'https://8b9ee30b3d9541d3b38d2fa6ddf9c73b@o447951.ingest.us.sentry.io/5572016',
+    'dsn' => '___PUBLIC_DSN___',
     'http_client' => new Sentry\Agent\Transport\AgentClient(),
 ]);
 ```
