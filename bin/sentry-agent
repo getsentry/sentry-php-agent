@@ -18,7 +18,8 @@ require $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
 //        Maybe there is a better way to select a port to use but for now this is fine.
 $listenAddress = ($argv[1] ?? '127.0.0.1') . ':' . ($argv[2] ?? 5148);
 
-// Configures the timeout for the connection to Sentry (in seconds), since we are running in an agent we can afford a little longer timeout then we would normally do in a regular PHP context
+// Configures the timeout for the connection to Sentry (in seconds), since we are running in an agent
+// we can afford a little longer timeout then we would normally do in a regular PHP context
 $upstreamTimeout = (float) ($argv[3] ?? 2.0);
 
 // Configures the amount of concurrent requests the agent is allowed to make towards Sentry
