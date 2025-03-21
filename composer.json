@@ -1,7 +1,7 @@
 {
-    "name": "sentry/sentry-agent",
+    "name": "sentry/sentry-php-agent",
     "type": "library",
-    "description": "PHP SDK Agent for Sentry (https://sentry.io)",
+    "description": "Sentry Agent for PHP (https://sentry.io)",
     "homepage": "https://sentry.io",
     "license": "MIT",
     "authors": [
