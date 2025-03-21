@@ -14,8 +14,8 @@ _Bad software is everywhere, and we're tired of it. Sentry is on a mission to he
 
 > [!CAUTION]
 > The current state of this project is somewhere along the lines of pre-alpha.
-> We stronlgy recommend you to not run this in production.
-> During the `0.x` release cylce, we might introduce breaking changes at any time.
+> We strongly recommend you to not run this in production.
+> During the `0.x` release cycle, we might introduce breaking changes at any time.
 
 ## Getting started
 
