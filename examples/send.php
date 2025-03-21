@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../vendor/autoload.php';
 
 Sentry\init([
-    'dsn' => 'https://8b9ee30b3d9541d3b38d2fa6ddf9c73b@o447951.ingest.us.sentry.io/5572016',
+    'dsn' => '___PUBLIC_DSN___',
     'http_client' => new Sentry\Agent\Transport\AgentClient(),
 ]);
 
