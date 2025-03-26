@@ -1,5 +1,5 @@
 {
-    "name": "sentry/sentry-php-agent",
+    "name": "sentry/sentry-agent",
     "type": "library",
     "description": "Sentry Agent for PHP (https://sentry.io)",
     "homepage": "https://sentry.io",
