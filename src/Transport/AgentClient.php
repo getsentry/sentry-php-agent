@@ -26,10 +26,16 @@ class AgentClient implements HttpClientInterface
      */
     private $socket;
 
-    public function __construct(string $host = '127.0.0.1', int $port = 5148)
+    /**
+     * @var HttpClientInterface|null
+     */
+    private $fallbackTransport;
+
+    public function __construct(string $host = '127.0.0.1', int $port = 5148, ?HttpClientInterface $fallbackTransport = null)
     {
         $this->host = $host;
         $this->port = $port;
+        $this->fallbackTransport = $fallbackTransport;
     }
 
     public function __destruct()
@@ -72,17 +78,17 @@ class AgentClient implements HttpClientInterface
         $this->socket = null;
     }
 
-    private function send(string $message): void
+    private function send(string $message): bool
     {
         if (!$this->connect()) {
-            return;
+            return false;
         }
 
         // @TODO: Make sure we don't send more than 2^32 - 1 bytes
         $contentLength = pack('N', \strlen($message) + 4);
 
-        // @TODO: Error handling?
-        fwrite($this->socket, $contentLength . $message);
+        // @TODO: Better error handling in case the agent was connected but is no longer available!?
+        return fwrite($this->socket, $contentLength . $message) > 0;
     }
 
     public function sendRequest(Request $request, Options $options): Response
@@ -93,9 +99,15 @@ class AgentClient implements HttpClientInterface
             return new Response(400, [], 'Request body is empty');
         }
 
-        $this->send($body);
+        if ($this->send($body)) {
+            // Since we are sending async there is no feedback so we always return an empty response
+            return new Response(202, [], '');
+        }
 
-        // Since we are sending async there is no feedback so we always return an empty response
-        return new Response(202, [], '');
+        if ($this->fallbackTransport !== null) {
+            return $this->fallbackTransport->sendRequest($request, $options);
+        }
+
+        return new Response(500, [], 'Unable to connect to the Sentry Agent, is it running?');
     }
 }
