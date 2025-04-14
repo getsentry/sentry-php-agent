@@ -63,7 +63,13 @@ $queue = new EnvelopeQueue(
     $upstreamConcurrency,
     $queueLimit,
     function (Envelope $envelope) use ($forwarder) {
-        return $forwarder->forward($envelope);
+        try {
+            return $forwarder->forward($envelope);
+        } catch (Exception $e) {
+            Log::error("Failed to forward envelope: {$e->getMessage()}");
+
+            return new React\Promise\Internal\RejectedPromise($e);
+        }
     }
 );
 
