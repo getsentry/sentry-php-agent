@@ -8,6 +8,8 @@ use Psr\Http\Message\ResponseInterface;
 use React\Http\Browser;
 use React\Promise\PromiseInterface;
 use Sentry\Dsn;
+use Sentry\HttpClient\Response;
+use Sentry\Transport\RateLimiter;
 
 /**
  * @internal
@@ -45,6 +47,11 @@ class EnvelopeForwarder
     private $onEnvelopeError;
 
     /**
+     * @var array<string, RateLimiter>
+     */
+    private $rateLimiters = [];
+
+    /**
      * @param callable(ResponseInterface): void $onEnvelopeSent  called when the envelope is sent
      * @param callable(\Throwable): void        $onEnvelopeError called when the envelope fails to send
      */
@@ -68,6 +75,16 @@ class EnvelopeForwarder
 
         $dsn = Dsn::createFromString($dsn);
 
+        $rateLimiter = $this->getRateLimiter($dsn);
+
+        // @TODO: We might need to get a little more advanced here and extract all items (and their headers) from the evelope and check each individually so we can remove the ones that are rate limited
+        $envelopeItemType = $envelope->getFirstItemType();
+
+        if ($envelopeItemType !== null && $rateLimiter->isRateLimited($envelopeItemType)) {
+            // @TODO: More information needs to be shown perhaps? Which DSN? Which project?
+            throw new \RuntimeException("Rate limit exceeded for item of type {$envelopeItemType}");
+        }
+
         $authHeader = [
             'sentry_version=' . self::PROTOCOL_VERSION,
             'sentry_client=' . self::IDENTIFIER . '/' . self::VERSION,
@@ -80,6 +97,23 @@ class EnvelopeForwarder
             'User-Agent' => self::IDENTIFIER . '/' . self::VERSION,
             'Content-Type' => 'application/x-sentry-envelope',
             'X-Sentry-Auth' => 'Sentry ' . implode(', ', $authHeader),
-        ], $envelope->getData())->then($this->onEnvelopeSent, $this->onEnvelopeError);
+        ], $envelope->getData())->then(function (ResponseInterface $response) use ($rateLimiter) {
+            $rateLimiter->handleResponse(
+                new Response($response->getStatusCode(), $response->getHeaders(), $response->getStatusCode() > 400 ? $response->getBody()->getContents() : '')
+            );
+
+            \call_user_func($this->onEnvelopeSent, $response);
+        }, $this->onEnvelopeError);
+    }
+
+    private function getRateLimiter(Dsn $dsn): RateLimiter
+    {
+        $key = $dsn->getEnvelopeApiEndpointUrl();
+
+        if (!isset($this->rateLimiters[$key])) {
+            $this->rateLimiters[$key] = new RateLimiter();
+        }
+
+        return $this->rateLimiters[$key];
     }
 }
