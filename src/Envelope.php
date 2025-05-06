@@ -4,98 +4,177 @@ declare(strict_types=1);
 
 namespace Sentry\Agent;
 
-use Sentry\EventType;
+use Sentry\Agent\Exceptions\MalformedEnvelope;
+use Sentry\Dsn;
 
 /**
  * @internal
+ *
+ * @phpstan-type EnvelopeHeader array{
+ *     dsn: string,
+ * }
  */
 class Envelope
 {
+    public const CONTENT_TYPE = 'application/x-sentry-envelope';
+
     /**
-     * @var string
+     * @var EnvelopeHeader The envelope header
      */
-    private $data;
+    private $header;
 
-    public function __construct(string $data)
+    /**
+     * @var EnvelopeItem[] The envelope items
+     */
+    private $items;
+
+    /**
+     * @param EnvelopeHeader $header
+     * @param EnvelopeItem[] $items
+     */
+    public function __construct(array $header, array $items)
     {
-        $this->data = $data;
+        $this->header = $header;
+        $this->items = $items;
     }
 
-    public function getDsn(): ?string
+    /**
+     * @return EnvelopeHeader
+     */
+    public function getHeader(): array
     {
-        $header = $this->getHeader();
-
-        if ($header === null) {
-            return null;
-        }
-
-        $parsedHeader = json_decode($header, true);
-
-        if (\is_array($parsedHeader) && !empty($parsedHeader['dsn']) && \is_string($parsedHeader['dsn'])) {
-            return $parsedHeader['dsn'];
-        }
-
-        return null;
+        return $this->header;
     }
 
-    public function getFirstItemType(): ?EventType
+    public function getDsn(): Dsn
     {
-        $header = $this->getFirstItemHeader();
+        return Dsn::createFromString($this->header['dsn']);
+    }
 
-        if ($header === null) {
-            return null;
-        }
+    /**
+     * @return EnvelopeItem[]
+     */
+    public function getItems(): array
+    {
+        return $this->items;
+    }
 
-        $parsedHeader = json_decode($header, true);
+    /**
+     * @param callable(EnvelopeItem): bool $callback
+     */
+    public function filterItems(callable $callback): void
+    {
+        $this->items = array_filter($this->items, $callback);
+    }
 
-        $type = null;
+    public function __toString()
+    {
+        $data = implode(
+            "\n",
+            array_map(
+                static function (EnvelopeItem $item): string {
+                    return (string) $item;
+                }, $this->items
+            )
+        );
 
-        if (\is_array($parsedHeader) && !empty($parsedHeader['type']) && \is_string($parsedHeader['type'])) {
-            $type = $parsedHeader['type'];
-        }
+        // We always terminate with an additional newline
+        return json_encode($this->header) . "\n{$data}";
+    }
 
-        switch ($type) {
-            case (string) EventType::event():
-                return EventType::event();
-            case (string) EventType::transaction():
-                return EventType::transaction();
-            case (string) EventType::checkIn():
-                return EventType::checkIn();
-            default:
+    /**
+     * @throws MalformedEnvelope
+     */
+    public static function fromString(string $envelope): self
+    {
+        $consumePart = static function () use (&$envelope): ?string {
+            // Once we fully consumed the envelope, we return null indicating EOF
+            if ($envelope === '') {
                 return null;
+            }
+
+            // Parts are newline delimited so we can find the next newline to find the end of the next part
+            $nextNewline = strpos($envelope, "\n");
+
+            if ($nextNewline === false) {
+                $nextNewline = \strlen($envelope);
+            }
+
+            $part = substr($envelope, 0, $nextNewline);
+
+            // We consume the newline as well
+            $envelope = substr($envelope, $nextNewline + 1);
+
+            // Empty parts are additional trailing newlines, which can be ignored
+            if ($part === '') {
+                return null;
+            }
+
+            return $part;
+        };
+
+        $consumeBytes = static function (int $bytes) use (&$envelope): string {
+            if (\strlen($envelope) < $bytes) {
+                throw new MalformedEnvelope('Envelope reached EOF before consuming expected bytes');
+            }
+
+            $part = substr($envelope, 0, $bytes);
+
+            $envelope = substr($envelope, $bytes + 1);
+
+            return $part;
+        };
+
+        $parseJson = static function (?string $json): array {
+            if ($json === null) {
+                throw new MalformedEnvelope('Envelope reached EOF before consuming expected JSON');
+            }
+
+            $decoded = json_decode($json, true);
+
+            if (!\is_array($decoded)) {
+                // Technically we could have a non-JSON error here (if we try to parse a single JSON scalar for example)
+                // but we don't really care if that happens and we can just assume there was a problem parsing the JSON if we don't get an array
+                throw new MalformedEnvelope('Failed to decode JSON: ' . json_last_error_msg());
+            }
+
+            return $decoded;
+        };
+
+        // The first part is always the envelope header
+        $header = $parseJson($consumePart());
+
+        // Technically the header could not contain the DSN key, but we don't really care about that case since we won't be able to forward the envelope
+        if (!isset($header['dsn'])) {
+            throw new MalformedEnvelope('Envelope header does not contain a DSN');
         }
-    }
 
-    public function getData(): string
-    {
-        return $this->data;
-    }
+        $items = [];
 
-    public function getHeader(): ?string
-    {
-        $position = strpos($this->data, "\n");
+        while ($rawItemHeader = $consumePart()) {
+            $itemHeader = $parseJson($rawItemHeader);
 
-        if ($position === false) {
-            return null;
+            // The item header should always contain the type
+            if (!isset($itemHeader['type'])) {
+                throw new MalformedEnvelope('Envelope item header does not contain a type');
+            }
+
+            // The size in the header is optional
+            $itemContentLength = $itemHeader['length'] ?? null;
+
+            if ($itemContentLength === null) {
+                $itemContent = $consumePart();
+
+                if ($itemContent === null) {
+                    throw new MalformedEnvelope('Envelope reached EOF before consuming expected item content');
+                }
+            } else {
+                $itemContent = $consumeBytes($itemContentLength);
+            }
+
+            $items[] = new EnvelopeItem($itemHeader, $itemContent);
         }
 
-        return substr($this->data, 0, $position);
-    }
-
-    public function getFirstItemHeader(): ?string
-    {
-        $headerEndsAt = strpos($this->data, "\n");
-
-        if ($headerEndsAt === false) {
-            return null;
-        }
-
-        $itemHeaderEndsAt = strpos($this->data, "\n", $headerEndsAt + 1);
-
-        if ($itemHeaderEndsAt === false) {
-            return null;
-        }
-
-        return substr($this->data, $headerEndsAt + 1, $itemHeaderEndsAt - $headerEndsAt - 1);
+        return new self($header, $items);
     }
 }
