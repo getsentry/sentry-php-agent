@@ -11,13 +11,26 @@ class EnvelopeTest extends TestCase
 {
     public function testCanParsePhpSdkExampleEvent(): void
     {
-        $payload = $this->getFixture('example_php_sdk_event');
+        $payload = $this->getFixture('envelope_with_php_sdk_event');
 
         $envelope = Envelope::fromString($payload);
 
         $this->assertCount(1, $envelope->getItems());
 
         $this->assertEquals('event', $envelope->getItems()[0]->getHeader()['type']);
+
+        $this->assertEquals($payload, (string) $envelope);
+    }
+
+    public function testCanParseLogsExampleEvent(): void
+    {
+        $payload = $this->getFixture('envelope_with_log_item');
+
+        $envelope = Envelope::fromString($payload);
+
+        $this->assertCount(1, $envelope->getItems());
+
+        $this->assertEquals('log', $envelope->getItems()[0]->getHeader()['type']);
 
         $this->assertEquals($payload, (string) $envelope);
     }
