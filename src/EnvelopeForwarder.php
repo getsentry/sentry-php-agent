@@ -8,6 +8,8 @@ use Psr\Http\Message\ResponseInterface;
 use React\Http\Browser;
 use React\Promise\PromiseInterface;
 use Sentry\Dsn;
+use Sentry\HttpClient\Response;
+use Sentry\Transport\RateLimiter;
 
 /**
  * @internal
@@ -45,6 +47,11 @@ class EnvelopeForwarder
     private $onEnvelopeError;
 
     /**
+     * @var array<string, RateLimiter>
+     */
+    private $rateLimiters = [];
+
+    /**
      * @param callable(ResponseInterface): void $onEnvelopeSent  called when the envelope is sent
      * @param callable(\Throwable): void        $onEnvelopeError called when the envelope fails to send
      */
@@ -62,11 +69,20 @@ class EnvelopeForwarder
     {
         $dsn = $envelope->getDsn();
 
-        if ($dsn === null) {
-            throw new \RuntimeException('The envelope does not contain a DSN.');
-        }
+        $rateLimiter = $this->getRateLimiter($dsn);
 
-        $dsn = Dsn::createFromString($dsn);
+        $envelope->rejectItems(static function (EnvelopeItem $envelopeItem) use ($rateLimiter) {
+            $envelopeItemType = $envelopeItem->getItemType();
+
+            // @TODO: We should make the rate limiter accept an arbitrary item type to allow for flexibility when adding new item types
+            if ($envelopeItemType === null) {
+                return false;
+            }
+
+            return $rateLimiter->isRateLimited($envelopeItemType);
+        });
+
+        // @TODO: If we rate limit all the items we have an empty envelope which we should not send and just return
 
         $authHeader = [
             'sentry_version=' . self::PROTOCOL_VERSION,
@@ -76,10 +92,32 @@ class EnvelopeForwarder
 
         // @TODO: Implement any number of missing options like the user-agent, encoding, proxy etc.
 
-        return (new Browser())->withTimeout($this->timeout)->post($dsn->getEnvelopeApiEndpointUrl(), [
-            'User-Agent' => self::IDENTIFIER . '/' . self::VERSION,
-            'Content-Type' => 'application/x-sentry-envelope',
-            'X-Sentry-Auth' => 'Sentry ' . implode(', ', $authHeader),
-        ], $envelope->getData())->then($this->onEnvelopeSent, $this->onEnvelopeError);
+        // @TODO: We might want to replace this Browser API with a cURL implementation using curl_multi_exec
+        return (new Browser())->withTimeout($this->timeout)->post(
+            $dsn->getEnvelopeApiEndpointUrl(),
+            [
+                'User-Agent' => self::IDENTIFIER . '/' . self::VERSION,
+                'Content-Type' => Envelope::CONTENT_TYPE,
+                'X-Sentry-Auth' => 'Sentry ' . implode(', ', $authHeader),
+            ],
+            (string) $envelope
+        )->then(function (ResponseInterface $response) use ($rateLimiter) {
+            $rateLimiter->handleResponse(
+                new Response($response->getStatusCode(), $response->getHeaders(), $response->getStatusCode() > 400 ? $response->getBody()->getContents() : '')
+            );
+
+            \call_user_func($this->onEnvelopeSent, $response);
+        }, $this->onEnvelopeError);
+    }
+
+    private function getRateLimiter(Dsn $dsn): RateLimiter
+    {
+        $key = $dsn->getEnvelopeApiEndpointUrl();
+
+        if (!isset($this->rateLimiters[$key])) {
+            $this->rateLimiters[$key] = new RateLimiter();
+        }
+
+        return $this->rateLimiters[$key];
     }
 }

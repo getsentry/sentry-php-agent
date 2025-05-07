@@ -6,6 +6,7 @@ namespace Sentry\Agent;
 
 use React\Socket\ConnectionInterface;
 use React\Socket\SocketServer;
+use Sentry\Agent\Exceptions\MalformedEnvelope;
 
 /**
  * @internal
@@ -76,7 +77,11 @@ class Server
                         break;
                     }
 
-                    \call_user_func($this->onEnvelopeReceived, new Envelope(substr($connectionBuffer, 4, $messageLength)));
+                    try {
+                        \call_user_func($this->onEnvelopeReceived, Envelope::fromString(substr($connectionBuffer, 4, $messageLength)));
+                    } catch (MalformedEnvelope $e) {
+                        \call_user_func($this->onConnectionError, $e);
+                    }
 
                     $connectionBuffer = substr($connectionBuffer, $messageLength);
                     $messageLength = 0;
