@@ -60,11 +60,16 @@ class Envelope
     }
 
     /**
-     * @param callable(EnvelopeItem): bool $callback
+     * @param callable(EnvelopeItem): bool $callback if the callback returns true, the item will be removed from the envelope
      */
-    public function filterItems(callable $callback): void
+    public function rejectItems(callable $callback): void
     {
-        $this->items = array_filter($this->items, $callback);
+        $this->items = array_filter(
+            $this->items,
+            static function (EnvelopeItem $item) use ($callback) {
+                return !$callback($item);
+            }
+        );
     }
 
     public function __toString()
