@@ -76,10 +76,10 @@ class EnvelopeForwarder
 
             // @TODO: We should make the rate limiter accept an arbitrary item type to allow for flexibility when adding new item types
             if ($envelopeItemType === null) {
-                return false;
+                return true;
             }
 
-            return $rateLimiter->isRateLimited($envelopeItemType);
+            return !$rateLimiter->isRateLimited($envelopeItemType);
         });
 
         // @TODO: If we rate limit all the items we have an empty envelope which we should not send and just return
