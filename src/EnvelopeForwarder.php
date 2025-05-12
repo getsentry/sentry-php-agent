@@ -72,14 +72,7 @@ class EnvelopeForwarder
         $rateLimiter = $this->getRateLimiter($dsn);
 
         $envelope->rejectItems(static function (EnvelopeItem $envelopeItem) use ($rateLimiter) {
-            $envelopeItemType = $envelopeItem->getItemType();
-
-            // @TODO: We should make the rate limiter accept an arbitrary item type to allow for flexibility when adding new item types
-            if ($envelopeItemType === null) {
-                return false;
-            }
-
-            return $rateLimiter->isRateLimited($envelopeItemType);
+            return $rateLimiter->isRateLimited($envelopeItem->getHeader()['type']);
         });
 
         // @TODO: If we rate limit all the items we have an empty envelope which we should not send and just return
