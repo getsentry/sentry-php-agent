@@ -6,6 +6,7 @@ namespace Sentry\Agent;
 
 use Psr\Http\Message\ResponseInterface;
 use React\Http\Browser;
+use React\Promise\Internal\FulfilledPromise;
 use React\Promise\PromiseInterface;
 use Sentry\Dsn;
 use Sentry\HttpClient\Response;
@@ -63,7 +64,7 @@ class EnvelopeForwarder
     }
 
     /**
-     * @return PromiseInterface<void>
+     * @return PromiseInterface<void|null>
      */
     public function forward(Envelope $envelope): PromiseInterface
     {
@@ -72,17 +73,13 @@ class EnvelopeForwarder
         $rateLimiter = $this->getRateLimiter($dsn);
 
         $envelope->rejectItems(static function (EnvelopeItem $envelopeItem) use ($rateLimiter) {
-            $envelopeItemType = $envelopeItem->getItemType();
-
-            // @TODO: We should make the rate limiter accept an arbitrary item type to allow for flexibility when adding new item types
-            if ($envelopeItemType === null) {
-                return false;
-            }
-
-            return $rateLimiter->isRateLimited($envelopeItemType);
+            return $rateLimiter->isRateLimited($envelopeItem->getHeader()['type']);
         });
 
-        // @TODO: If we rate limit all the items we have an empty envelope which we should not send and just return
+        // When the envelope is empty, we don't need to send it
+        if ($envelope->isEmpty()) {
+            return new FulfilledPromise();
+        }
 
         $authHeader = [
             'sentry_version=' . self::PROTOCOL_VERSION,

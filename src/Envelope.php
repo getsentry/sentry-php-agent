@@ -59,6 +59,11 @@ class Envelope
         return $this->items;
     }
 
+    public function isEmpty(): bool
+    {
+        return empty($this->items);
+    }
+
     /**
      * @param callable(EnvelopeItem): bool $callback if the callback returns true, the item will be removed from the envelope
      */

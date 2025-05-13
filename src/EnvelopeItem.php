@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Sentry\Agent;
 
-use Sentry\EventType;
-
 /**
  * @internal
  *
@@ -41,20 +39,6 @@ class EnvelopeItem
     public function getHeader(): array
     {
         return $this->header;
-    }
-
-    public function getItemType(): ?EventType
-    {
-        switch ($this->header['type']) {
-            case (string) EventType::event():
-                return EventType::event();
-            case (string) EventType::transaction():
-                return EventType::transaction();
-            case (string) EventType::checkIn():
-                return EventType::checkIn();
-            default:
-                return null;
-        }
     }
 
     public function getData(): string
