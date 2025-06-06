@@ -14,7 +14,6 @@
         "php": "^7.2|^8",
         "ext-json": "*",
         "clue/mq-react": "^1.6",
-        "react/http": "^1.11",
         "react/socket": "^1.16",
         "sentry/sentry": "^4.11.1"
     },
