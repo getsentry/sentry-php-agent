@@ -109,11 +109,7 @@ class EnvelopeForwarder
     }
 
     /**
-     * Async POST request using curl_multi_exec.
-     *
      * @param array<string, string> $headers
-     *
-     * @return PromiseInterface<ResponseInterface>
      */
     private function postAsync(string $url, array $headers, string $body): PromiseInterface
     {
@@ -152,23 +148,19 @@ class EnvelopeForwarder
     {
         $running = null;
         
-        // Execute one iteration
         $status = \curl_multi_exec($curlMultiHandle, $running);
         
         if ($running > 0 && $status === \CURLM_OK) {
-            // Use a small timer interval for efficient polling (1ms)
             $loop->addTimer(0.001, function () use ($curlMultiHandle, $curlHandle, $resolve, $reject, $loop) {
                 $this->pollCurlMultiWithEventLoop($curlMultiHandle, $curlHandle, $resolve, $reject, $loop);
             });
         } else {
-            // Request completed, finalize the response
             $this->finalizeCurlResponse($curlMultiHandle, $curlHandle, $resolve, $reject);
         }
     }
 
     private function finalizeCurlResponse(\CurlMultiHandle $curlMultiHandle, \CurlHandle $curlHandle, callable $resolve, callable $reject): void
     {
-        // Get the response
         $response = curl_multi_getcontent($curlHandle);
         $info = curl_getinfo($curlHandle);
         $error = curl_error($curlHandle);
