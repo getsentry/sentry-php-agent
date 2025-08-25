@@ -9,7 +9,11 @@ use Sentry\Agent\EnvelopeForwarder;
 use Sentry\Agent\EnvelopeQueue;
 use Sentry\Agent\Server;
 
-// ./sentry-agent [listen_address] [listen_port] [upstream_timeout] [upstream_concurrency] [queue_limit]
+// @TODO: Improve the help output to be a little more useful and explain the different options
+if (($argv[1] ?? '') === 'help' || ($argv[1] ?? '') === '--help' || ($argv[1] ?? '') === '-h') {
+    echo 'Usage: ./sentry-agent [listen_address] [listen_port] [upstream_timeout] [upstream_concurrency] [queue_limit]' . \PHP_EOL;
+    exit;
+}
 
 require $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
 
@@ -52,9 +56,13 @@ $forwarder = new EnvelopeForwarder(
         } else {
             Log::error("Envelope send error: {$response->getStatusCode()} {$response->getReasonPhrase()}");
         }
+
+        return null;
     },
     function (Throwable $exception) {
         Log::error("Envelope send error: {$exception->getMessage()}");
+
+        return null;
     }
 );
 

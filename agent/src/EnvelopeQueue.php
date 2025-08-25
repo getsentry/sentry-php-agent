@@ -12,16 +12,15 @@ use Clue\React\Mq\Queue;
 class EnvelopeQueue
 {
     /**
-     * @var Queue<void>
+     * @var Queue<null>
      */
     private $queue;
 
     /**
-     * @param callable(Envelope): \React\Promise\PromiseInterface<void> $onProcessEnvelope called when a envelope is ready for processing
+     * @param callable(Envelope): \React\Promise\PromiseInterface<null> $onProcessEnvelope called when a envelope is ready for processing
      */
     public function __construct(int $concurrency, int $limit, callable $onProcessEnvelope)
     {
-        // @phpstan-ignore-next-line Cannot figure out the right incantations to make phpstan happy at this point, the $onProcessEnvelope should be the correct callable type
         $this->queue = new Queue($concurrency, $limit, $onProcessEnvelope);
     }
 

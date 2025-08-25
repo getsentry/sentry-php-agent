@@ -38,12 +38,12 @@ class EnvelopeForwarder
     private $timeout;
 
     /**
-     * @var callable(ResponseInterface): void
+     * @var callable(ResponseInterface): null
      */
     private $onEnvelopeSent;
 
     /**
-     * @var callable(\Throwable): void
+     * @var callable(\Throwable): null
      */
     private $onEnvelopeError;
 
@@ -53,8 +53,8 @@ class EnvelopeForwarder
     private $rateLimiters = [];
 
     /**
-     * @param callable(ResponseInterface): void $onEnvelopeSent  called when the envelope is sent
-     * @param callable(\Throwable): void        $onEnvelopeError called when the envelope fails to send
+     * @param callable(ResponseInterface): null $onEnvelopeSent  called when the envelope is sent
+     * @param callable(\Throwable): null        $onEnvelopeError called when the envelope fails to send
      */
     public function __construct(float $timeout, callable $onEnvelopeSent, callable $onEnvelopeError)
     {
@@ -64,7 +64,7 @@ class EnvelopeForwarder
     }
 
     /**
-     * @return PromiseInterface<void|null>
+     * @return PromiseInterface<null>
      */
     public function forward(Envelope $envelope): PromiseInterface
     {
@@ -104,6 +104,8 @@ class EnvelopeForwarder
             );
 
             \call_user_func($this->onEnvelopeSent, $response);
+
+            return null;
         }, $this->onEnvelopeError);
     }
 
