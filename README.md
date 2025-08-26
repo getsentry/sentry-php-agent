@@ -24,7 +24,7 @@ _Bad software is everywhere, and we're tired of it. Sentry is on a mission to he
 Install the agent using [Composer](https://getcomposer.org/).
 
 ```bash
-composer require sentry/sentry-php-agent
+composer require sentry/sentry-agent
 ```
 
 ### Configuration
