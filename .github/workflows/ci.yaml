@@ -22,19 +22,30 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref }}
         
-      - name: Setup PHP
+      - name: Setup PHP for agent dependencies
         uses: shivammathur/setup-php@9e72090525849c5e82e596468b86eb55e9cc5401
         with:
           php-version: '7.2'
-          tools: composer:v2, box
-          ini-values: phar.readonly=0
+          tools: composer:v2
 
       - name: Install dependencies
         working-directory: agent
         run: composer update --no-progress --no-interaction --prefer-dist
+
+      - name: Setup PHP for Box
+        uses: shivammathur/setup-php@9e72090525849c5e82e596468b86eb55e9cc5401
+        with:
+          php-version: '8.2'
+          tools: box
+          ini-values: phar.readonly=0
         
       - name: Build PHAR
         run: scripts/build.sh
+
+      - name: Setup PHP for PHAR test
+        uses: shivammathur/setup-php@9e72090525849c5e82e596468b86eb55e9cc5401
+        with:
+          php-version: '7.2'
 
       - name: Test PHAR
         run: php bin/sentry-agent help
