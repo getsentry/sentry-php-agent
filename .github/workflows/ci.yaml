@@ -7,7 +7,7 @@ on:
       - main
       
 concurrency: 
-  group: ${{ github.workflow }}-${{ github.head_ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
 
 jobs:
   build-agent:
@@ -49,4 +49,10 @@ jobs:
 
       - name: Test PHAR
         run: php bin/sentry-agent help
-      
+
+      - name: Upload PHAR artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentry-agent-${{ github.sha }}
+          path: |
+            bin/sentry-agent
