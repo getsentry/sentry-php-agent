@@ -1,4 +1,6 @@
 {
     "main": "src/sentry-agent.php",
-    "output": "../bin/sentry-agent"
+    "output": "../bin/sentry-agent",
+    "alias": "sentry-agent.phar",
+    "timestamp": "20250904"
 }
