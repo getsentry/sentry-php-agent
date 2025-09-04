@@ -1,0 +1,100 @@
+<?php
+
+declare(strict_types=1);
+
+use React\EventLoop\Loop;
+use Sentry\Agent\Console\Log;
+use Sentry\Agent\Envelope;
+use Sentry\Agent\EnvelopeForwarder;
+use Sentry\Agent\EnvelopeQueue;
+use Sentry\Agent\Server;
+
+// @TODO: Improve the help output to be a little more useful and explain the different options
+if (($argv[1] ?? '') === 'help' || ($argv[1] ?? '') === '--help' || ($argv[1] ?? '') === '-h') {
+    echo 'Usage: ./sentry-agent [listen_address] [listen_port] [upstream_timeout] [upstream_concurrency] [queue_limit]' . \PHP_EOL;
+    exit;
+}
+
+require $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
+
+// @TODO: "sentryagent" with a 5 in front, it's a unused "user port": https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=5148
+//        Maybe there is a better way to select a port to use but for now this is fine.
+$listenAddress = ($argv[1] ?? '127.0.0.1') . ':' . ($argv[2] ?? 5148);
+
+// Configures the timeout for the connection to Sentry (in seconds), since we are running in an agent
+// we can afford a little longer timeout then we would normally do in a regular PHP context
+$upstreamTimeout = (float) ($argv[3] ?? 2.0);
+
+// Configures the amount of concurrent requests the agent is allowed to make towards Sentry
+$upstreamConcurrency = (int) ($argv[4] ?? 10);
+
+// How many envelopes we want to keep in memory before we start dropping them
+$queueLimit = (int) ($argv[5] ?? 1000);
+
+Log::info("=> Starting Sentry agent, listening on {$listenAddress} with config:");
+Log::info(" > upstream timeout: {$upstreamTimeout}");
+Log::info(" > upstream concurrency: {$upstreamConcurrency}");
+Log::info(" > queue limit: {$queueLimit}");
+
+$forwarder = new EnvelopeForwarder(
+    $upstreamTimeout,
+    function (Psr\Http\Message\ResponseInterface $response) {
+        if ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300) {
+            if ($response->getStatusCode() === 200) {
+                $responseBody = json_decode($response->getBody()->getContents(), true);
+
+                $eventId = is_array($responseBody) ? $responseBody['id'] ?? null : null;
+
+                if (!is_string($eventId)) {
+                    $eventId = '<unknown>';
+                }
+
+                Log::info("Envelope sent successfully (ID: {$eventId}, http status: {$response->getStatusCode()}).");
+            } else {
+                Log::info("Envelope sent successfully (http status: {$response->getStatusCode()}).");
+            }
+        } else {
+            Log::error("Envelope send error: {$response->getStatusCode()} {$response->getReasonPhrase()}");
+        }
+
+        return null;
+    },
+    function (Throwable $exception) {
+        Log::error("Envelope send error: {$exception->getMessage()}");
+
+        return null;
+    }
+);
+
+$queue = new EnvelopeQueue(
+    $upstreamConcurrency,
+    $queueLimit,
+    function (Envelope $envelope) use ($forwarder) {
+        try {
+            return $forwarder->forward($envelope);
+        } catch (Exception $e) {
+            Log::error("Failed to forward envelope: {$e->getMessage()}");
+
+            return new React\Promise\Internal\RejectedPromise($e);
+        }
+    }
+);
+
+$server = new Server(
+    $listenAddress,
+    function (Throwable $exception) {
+        Log::error("Server error: {$exception->getMessage()}");
+    },
+    function (Throwable $exception) {
+        Log::error("Incoming connection error: {$exception->getMessage()}");
+    },
+    function (Envelope $envelope) use ($queue) {
+        Log::info('Envelope received, queueing forward to Sentry...');
+
+        $queue->enqueue($envelope);
+    }
+);
+
+$server->run();
+
+Loop::run();

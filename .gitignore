@@ -1,6 +1,7 @@
 *.lock
+!agent/composer.lock
 package.xml
-/vendor
+vendor
 .idea
 .php-cs-fixer.cache
 .phpbench

@@ -1,5 +1,5 @@
 {
-    "name": "sentry/sentry-agent",
+    "name": "sentry/sentry-agent-internal",
     "type": "library",
     "description": "Sentry Agent for PHP (https://sentry.io)",
     "homepage": "https://sentry.io",
@@ -11,8 +11,11 @@
         }
     ],
     "require": {
-        "php": "^7.2|^8",
+        "php": "^7.2|^8.0",
         "ext-json": "*",
+        "clue/mq-react": "^1.6",
+        "react/http": "^1.11",
+        "react/socket": "^1.16",
         "sentry/sentry": "^4.15.0"
     },
     "autoload": {
@@ -21,8 +24,7 @@
         }
     },
     "require-dev": {
-        "friendsofphp/php-cs-fixer": "^3.70",
-        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan": "1.12.5",
         "phpunit/phpunit": "^8.5|^9.6"
     },
     "autoload-dev": {
@@ -30,23 +32,17 @@
             "Sentry\\Agent\\Tests\\": "tests/"
         }
     },
-    "bin": [
-        "bin/sentry-agent"
-    ],
     "scripts": {
         "check": [
-            "@cs-check",
             "@phpstan",
             "@tests"
         ],
         "tests": "vendor/bin/phpunit --verbose",
-        "cs-check": "vendor/bin/php-cs-fixer fix --verbose --diff --dry-run",
-        "cs-fix": "vendor/bin/php-cs-fixer fix --verbose --diff",
-        "phpstan": "vendor/bin/phpstan analyse",
-        "build": "scripts/build.sh"
+        "phpstan": "vendor/bin/phpstan analyse"
     },
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "autoloader-suffix": "SentryAgentChecksum"
     },
     "prefer-stable": true
 }

@@ -40,8 +40,8 @@ return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)
     ->setFinder(
         PhpCsFixer\Finder::create()
-                         ->in(__DIR__ . '/src')
-                         ->append([
-                             __DIR__ . '/sentry-agent',
+                         ->in([
+                             __DIR__ . '/src',
+                             __DIR__ . '/agent/src',
                          ])
     );
