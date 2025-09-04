@@ -6,4 +6,4 @@ targets:
   - name: github
   - name: registry
     sdks:
-      composer:sentry/sentry-php-agent:
+      composer:sentry/sentry-agent:
