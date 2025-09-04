@@ -9,6 +9,10 @@ on:
       force:
         description: Force a release even when there are release-blockers (optional)
         required: false
+      merge_target:
+          description: Target branch to merge into. Uses the default branch as a fallback (optional)
+          required: false
+          default: main
 
 permissions:
   contents: read
@@ -26,7 +30,7 @@ jobs:
           private-key: ${{ secrets.SENTRY_RELEASE_BOT_PRIVATE_KEY }}
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           token: ${{ steps.token.outputs.token }}
           fetch-depth: 0
@@ -38,3 +42,4 @@ jobs:
         with:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
+          merge_target: ${{ github.event.inputs.merge_target }}

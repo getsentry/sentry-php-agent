@@ -1,13 +1,10 @@
-name: PHAR
+name: Build PHAR
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
-      
-concurrency: 
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+
+permissions:
+  contents: read
 
 jobs:
   build-agent:
@@ -35,7 +32,7 @@ jobs:
       - name: Setup PHP for Box
         uses: shivammathur/setup-php@ec406be512d7077f68eed36e63f4d91bc006edc4 # v2.35.4
         with:
-          php-version: '8.2'
+          php-version: '8.4'
           tools: box
           ini-values: phar.readonly=0
         
@@ -50,19 +47,9 @@ jobs:
       - name: Test PHAR
         run: php bin/sentry-agent help
 
-      - name: Upload PHAR artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: sentry-agent-${{ github.sha }}
-          path: |
-            bin/sentry-agent
-
-      - name: Commit PHAR on main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: EndBug/add-and-commit@v9
+      - name: Commit PHAR
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
         with:
           add: "bin/sentry-agent bin/sentry-agent.sig"
           message: "Add PHAR artifact [skip ci]"
           default_author: github_actions
-          push: true
-          branch: main
