@@ -2,7 +2,7 @@ minVersion: 0.23.1
 github:
   owner: getsentry
   repo: sentry-php-agent
-changelogPolicy: simple
+changelogPolicy: none
 statusProvider:
   name: github
 artifactProvider:
