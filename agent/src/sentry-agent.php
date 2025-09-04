@@ -26,10 +26,10 @@ $listenAddress = ($argv[1] ?? '127.0.0.1') . ':' . ($argv[2] ?? 5148);
 $upstreamTimeout = (float) ($argv[3] ?? 2.0);
 
 // Configures the amount of concurrent requests the agent is allowed to make towards Sentry
-$upstreamConcurrency = (int) ($argv[3] ?? 10);
+$upstreamConcurrency = (int) ($argv[4] ?? 10);
 
 // How many envelopes we want to keep in memory before we start dropping them
-$queueLimit = (int) ($argv[4] ?? 1000);
+$queueLimit = (int) ($argv[5] ?? 1000);
 
 Log::info("=> Starting Sentry agent, listening on {$listenAddress} with config:");
 Log::info(" > upstream timeout: {$upstreamTimeout}");
