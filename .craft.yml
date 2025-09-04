@@ -1,9 +1,15 @@
 minVersion: 0.23.1
+github:
+  owner: getsentry
+  repo: sentry-php-agent
 changelogPolicy: simple
+statusProvider:
+  name: github
 artifactProvider:
   name: none
 targets:
   - name: github
   - name: registry
-    sdks:
-      composer:sentry/sentry-agent:
+    type: sdk
+    config:
+      canonical: 'composer:sentry/sentry-agent'
