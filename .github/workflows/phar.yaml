@@ -59,9 +59,9 @@ jobs:
       - name: Test PHAR
         run: php bin/sentry-agent help
 
-      - name: Commit PHAR
-        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
-        with:
-          add: "bin/sentry-agent bin/sentry-agent.sig"
-          message: "Add PHAR artifact"
-          default_author: github_actions
+#      - name: Commit PHAR
+#        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
+#        with:
+#          add: "bin/sentry-agent bin/sentry-agent.sig"
+#          message: "Add PHAR artifact"
+#          default_author: github_actions
