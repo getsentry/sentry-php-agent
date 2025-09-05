@@ -15,7 +15,7 @@ if (($argv[1] ?? '') === 'help' || ($argv[1] ?? '') === '--help' || ($argv[1] ??
     exit;
 }
 
-if (class_exists('Phar') && \Phar::running(false) !== '') {
+if (class_exists('Phar') && Phar::running(false) !== '') {
     // If running the .phar directly from ./vendor/bin/, we don't want to use $_composer_autoload_path since this
     // will load the projects files and lead to ClassNotFound errors.
     // We want to use the autoload.php from the phar itself.
@@ -24,7 +24,6 @@ if (class_exists('Phar') && \Phar::running(false) !== '') {
     // This works fine for local development or if running the phar from ./vendor/sentry/sentry-agent/bin/
     require $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
 }
-
 
 // @TODO: "sentryagent" with a 5 in front, it's a unused "user port": https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=5148
 //        Maybe there is a better way to select a port to use but for now this is fine.
