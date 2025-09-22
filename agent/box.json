@@ -2,5 +2,6 @@
     "main": "src/sentry-agent.php",
     "output": "../bin/sentry-agent",
     "alias": "sentry-agent",
+    "banner": false,
     "timestamp": "20250904"
 }

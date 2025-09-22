@@ -110,10 +110,10 @@ class Envelope
                 $nextNewline = \strlen($envelope);
             }
 
-            $part = substr($envelope, 0, $nextNewline);
+            $part = (string) substr($envelope, 0, $nextNewline);
 
             // We consume the newline as well
-            $envelope = substr($envelope, $nextNewline + 1);
+            $envelope = (string) substr($envelope, $nextNewline + 1);
 
             // Empty parts are additional trailing newlines, which can be ignored
             if ($part === '') {
@@ -128,9 +128,9 @@ class Envelope
                 throw new MalformedEnvelope('Envelope reached EOF before consuming expected bytes');
             }
 
-            $part = substr($envelope, 0, $bytes);
+            $part = (string) substr($envelope, 0, $bytes);
 
-            $envelope = substr($envelope, $bytes + 1);
+            $envelope = (string) substr($envelope, $bytes + 1);
 
             return $part;
         };
