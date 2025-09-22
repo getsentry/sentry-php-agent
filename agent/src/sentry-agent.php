@@ -9,17 +9,17 @@ use Sentry\Agent\EnvelopeForwarder;
 use Sentry\Agent\EnvelopeQueue;
 use Sentry\Agent\Server;
 
+$vendorPath = __DIR__ . '/../vendor';
+
 if (class_exists('Phar') && Phar::running(false) !== '') {
     // If running the .phar directly from ./vendor/bin/, we don't want to use $_composer_autoload_path since this
     // will load the projects files and lead to ClassNotFound errors.
     // We want to use the autoload.php from the phar itself.
-    $vendorPath = __DIR__ . '/../vendor';
+    require_once "{$vendorPath}/autoload.php";
 } else {
     // This works fine for local development or if running the phar from ./vendor/sentry/sentry-agent/bin/
-    $vendorPath = $_composer_autoload_path ?? __DIR__ . '/../vendor';
+    require_once $_composer_autoload_path ?? "{$vendorPath}/autoload.php";
 }
-
-require_once "{$vendorPath}/autoload.php";
 
 $sentryAgentVersion = '0.0.0';
 
