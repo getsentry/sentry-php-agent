@@ -9,40 +9,118 @@ use Sentry\Agent\EnvelopeForwarder;
 use Sentry\Agent\EnvelopeQueue;
 use Sentry\Agent\Server;
 
-// @TODO: Improve the help output to be a little more useful and explain the different options
-if (($argv[1] ?? '') === 'help' || ($argv[1] ?? '') === '--help' || ($argv[1] ?? '') === '-h') {
-    echo 'Usage: ./sentry-agent [listen_address] [listen_port] [upstream_timeout] [upstream_concurrency] [queue_limit]' . \PHP_EOL;
-    exit;
-}
+$vendorPath = __DIR__ . '/../vendor';
 
 if (class_exists('Phar') && Phar::running(false) !== '') {
     // If running the .phar directly from ./vendor/bin/, we don't want to use $_composer_autoload_path since this
     // will load the projects files and lead to ClassNotFound errors.
     // We want to use the autoload.php from the phar itself.
-    require __DIR__ . '/../vendor/autoload.php';
+    require_once "{$vendorPath}/autoload.php";
 } else {
     // This works fine for local development or if running the phar from ./vendor/sentry/sentry-agent/bin/
-    require $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
+    require_once $_composer_autoload_path ?? "{$vendorPath}/autoload.php";
 }
 
-// @TODO: "sentryagent" with a 5 in front, it's a unused "user port": https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=5148
-//        Maybe there is a better way to select a port to use but for now this is fine.
-$listenAddress = ($argv[1] ?? '127.0.0.1') . ':' . ($argv[2] ?? 5148);
+$sentryAgentVersion = '0.0.0';
 
-// Configures the timeout for the connection to Sentry (in seconds), since we are running in an agent
-// we can afford a little longer timeout then we would normally do in a regular PHP context
-$upstreamTimeout = (float) ($argv[3] ?? 2.0);
+if (file_exists("{$vendorPath}/composer/installed.php")) {
+    $installed = require "{$vendorPath}/composer/installed.php";
 
-// Configures the amount of concurrent requests the agent is allowed to make towards Sentry
-$upstreamConcurrency = (int) ($argv[4] ?? 10);
+    $sentryAgentVersion = $installed['root']['pretty_version'] ?? $sentryAgentVersion;
+}
 
-// How many envelopes we want to keep in memory before we start dropping them
-$queueLimit = (int) ($argv[5] ?? 1000);
+function printHelp(): void
+{
+    global $sentryAgentVersion;
 
-Log::info("=> Starting Sentry agent, listening on {$listenAddress} with config:");
-Log::info(" > upstream timeout: {$upstreamTimeout}");
-Log::info(" > upstream concurrency: {$upstreamConcurrency}");
-Log::info(" > queue limit: {$queueLimit}");
+    echo <<<HELP
+Sentry Agent {$sentryAgentVersion} 
+
+Description:
+  A local agent that listens for Sentry SDK requests and forwards them to the destined Sentry server.
+  
+Usage:
+  ./sentry-agent [options]
+  
+Options:
+  -h, --help                            Display this help output
+      --listen=ADDRESS                  The address the agent listens for connections on [default: "127.0.0.1:5148"]
+      --upstream-timeout=SECONDS        The timeout for the connection to Sentry (in seconds) [default: "2.0"]
+      --upstream-concurrency=REQUESTS   Configures the amount of concurrent requests the agent is allowed to make towards Sentry [default: "10"]
+      --queue-limit=ENVELOPES           How many envelopes we want to keep in memory before we start dropping them [default: "1000"]
+  -v, --verbose                         When supplied the agent will print debug messages to the console, otherwise only errors and info messages are printed
+
+HELP;
+}
+
+$options = getopt('h', ['listen::', 'upstream-timeout::', 'upstream-concurrency::', 'queue-limit::', 'help']);
+
+if ($options === false) {
+    Log::error('Failed to parse command line options.');
+
+    exit(1);
+}
+
+$getOption = static function (string $key, $default = null) use ($options) {
+    if (!isset($options[$key])) {
+        return $default;
+    }
+
+    // If the option is provided multiple times, we take the first value.
+    $value = is_array($options[$key])
+        ? $options[$key][0]
+        : $options[$key];
+
+    // Options without a value are returned as false by getopt. We treat them as boolean flags and return true instead.
+    return $value === false
+        ? true
+        : $value;
+};
+
+$firstArgument = $argv[1] ?? '-';
+
+if ($firstArgument === 'help' || $firstArgument[0] !== '-' || $getOption('h') || $getOption('help')) {
+    printHelp();
+
+    // Showed help, exit.
+    exit(0);
+}
+
+Log::setVerbose($getOption('v') || $getOption('verbose'));
+
+$listenAddress = $getOption('listen', '127.0.0.1:5148');
+
+$upstreamTimeout = (float) $getOption('upstream-timeout', 2.0);
+
+if ($upstreamTimeout <= 0) {
+    Log::error('The upstream timeout must be a positive number.');
+
+    exit(1);
+}
+
+$upstreamConcurrency = (int) $getOption('upstream-concurrency', 10);
+
+if ($upstreamConcurrency <= 0) {
+    Log::error('The upstream concurrency must be a positive integer.');
+
+    exit(1);
+}
+
+$queueLimit = (int) $getOption('queue-limit', 1000);
+
+if ($queueLimit <= 0) {
+    Log::error('The queue limit must be a positive integer and at least 1.');
+
+    exit(1);
+}
+
+if ($queueLimit < $upstreamConcurrency) {
+    Log::error('The queue limit must be at least equal to the upstream concurrency.');
+
+    exit(1);
+}
+
+Log::info("Starting Sentry Agent ({$sentryAgentVersion}), listening on {$listenAddress} (timeout:{$upstreamTimeout}, concurrency:{$upstreamConcurrency}, queue:{$queueLimit})");
 
 $forwarder = new EnvelopeForwarder(
     $upstreamTimeout,
@@ -57,9 +135,9 @@ $forwarder = new EnvelopeForwarder(
                     $eventId = '<unknown>';
                 }
 
-                Log::info("Envelope sent successfully (ID: {$eventId}, http status: {$response->getStatusCode()}).");
+                Log::debug("Envelope sent successfully (ID: {$eventId}, http status: {$response->getStatusCode()}).");
             } else {
-                Log::info("Envelope sent successfully (http status: {$response->getStatusCode()}).");
+                Log::debug("Envelope sent successfully (http status: {$response->getStatusCode()}).");
             }
         } else {
             Log::error("Envelope send error: {$response->getStatusCode()} {$response->getReasonPhrase()}");
@@ -97,7 +175,7 @@ $server = new Server(
         Log::error("Incoming connection error: {$exception->getMessage()}");
     },
     function (Envelope $envelope) use ($queue) {
-        Log::info('Envelope received, queueing forward to Sentry...');
+        Log::debug('Envelope received, queueing forward to Sentry...');
 
         $queue->enqueue($envelope);
     }
