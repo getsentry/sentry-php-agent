@@ -26,14 +26,14 @@ trait TestAgent
     protected $agentStderr;
 
     /**
-     * @var int the port on which the agent is listening, this default value was randomly chosen
+     * @var int the port on which the agent is listening, this default value was somwhat randomly chosen
      */
-    protected $agentPort = 44885;
+    protected $agentPort = 45248;
 
     /**
-     * @var int the port on which the control server is listening
+     * @var int the port on which the control server is listening, this default value was somwhat randomly chosen
      */
-    protected $controlServerPort = 44886;
+    protected $controlServerPort = 45249;
 
     /**
      * @var resource|null the socket connection to the agent
