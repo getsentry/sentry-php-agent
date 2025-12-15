@@ -36,11 +36,6 @@ trait TestAgent
     protected $controlServerPort = 45249;
 
     /**
-     * @var resource|null the socket connection to the agent
-     */
-    protected $agentSocket;
-
-    /**
      * Start the test agent.
      *
      * @return string the address the agent is listening on
@@ -140,13 +135,6 @@ trait TestAgent
         $socket = stream_socket_client("tcp://{$address}", $errno, $errstr, 5);
 
         if ($socket === false) {
-            // Check if agent is still running to provide better error message
-            $status = proc_get_status($this->agentProcess);
-            if (!$status['running']) {
-                stream_set_blocking($this->agentStderr, false);
-                $stderrOutput = stream_get_contents($this->agentStderr);
-                throw new \RuntimeException("Failed to connect to test agent: agent process has exited. Stderr: {$stderrOutput}");
-            }
             throw new \RuntimeException("Failed to connect to test agent: {$errstr} ({$errno})");
         }
 
@@ -189,13 +177,6 @@ trait TestAgent
         $result = @file_get_contents("http://{$controlServerAddress}/drain", false, $context);
 
         if ($result === false) {
-            // Check if agent is still running to provide better error message
-            $status = proc_get_status($this->agentProcess);
-            if (!$status['running']) {
-                stream_set_blocking($this->agentStderr, false);
-                $stderrOutput = stream_get_contents($this->agentStderr);
-                throw new \RuntimeException("Failed to drain queue: agent process has exited. Stderr: {$stderrOutput}");
-            }
             throw new \RuntimeException("Failed to drain queue: control server at {$controlServerAddress} is unavailable");
         }
     }
