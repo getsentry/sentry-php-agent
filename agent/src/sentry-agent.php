@@ -192,7 +192,12 @@ $server = new Server(
     }
 );
 
-$server->run();
+try {
+    $server->run();
+} catch (\RuntimeException $e) {
+    Log::error("Failed to start server on {$listenAddress}: {$e->getMessage()}");
+    exit(1);
+}
 
 $controlServerAddress = $getOption('control-server');
 $controlServer = null;
@@ -201,7 +206,14 @@ if ($controlServerAddress !== null) {
     Log::info("Starting control server on {$controlServerAddress}");
 
     $controlServer = new ControlServer($controlServerAddress, $queue);
-    $controlServer->run();
+
+    try {
+        $controlServer->run();
+    } catch (\RuntimeException $e) {
+        Log::error("Failed to start control server on {$controlServerAddress}: {$e->getMessage()}");
+        $server->close();
+        exit(1);
+    }
 }
 
 // Set up graceful shutdown handling
