@@ -103,7 +103,7 @@ trait TestAgent
             throw new \RuntimeException("Error starting test agent on pid {$pid}, command failed: {$command}");
         }
 
-        // Wait for the control server to be ready to accept HTTP requests
+        // Wait for the control server to be ready by checking its /status endpoint
         $controlServerAddress = "127.0.0.1:{$this->controlServerPort}";
         $streamContext = stream_context_create(['http' => ['timeout' => 1]]);
 
@@ -140,6 +140,13 @@ trait TestAgent
         $socket = stream_socket_client("tcp://{$address}", $errno, $errstr, 5);
 
         if ($socket === false) {
+            // Check if agent is still running to provide better error message
+            $status = proc_get_status($this->agentProcess);
+            if (!$status['running']) {
+                stream_set_blocking($this->agentStderr, false);
+                $stderrOutput = stream_get_contents($this->agentStderr);
+                throw new \RuntimeException("Failed to connect to test agent: agent process has exited. Stderr: {$stderrOutput}");
+            }
             throw new \RuntimeException("Failed to connect to test agent: {$errstr} ({$errno})");
         }
 
@@ -182,6 +189,13 @@ trait TestAgent
         $result = @file_get_contents("http://{$controlServerAddress}/drain", false, $context);
 
         if ($result === false) {
+            // Check if agent is still running to provide better error message
+            $status = proc_get_status($this->agentProcess);
+            if (!$status['running']) {
+                stream_set_blocking($this->agentStderr, false);
+                $stderrOutput = stream_get_contents($this->agentStderr);
+                throw new \RuntimeException("Failed to drain queue: agent process has exited. Stderr: {$stderrOutput}");
+            }
             throw new \RuntimeException("Failed to drain queue: control server at {$controlServerAddress} is unavailable");
         }
     }
