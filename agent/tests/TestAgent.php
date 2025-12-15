@@ -103,6 +103,25 @@ trait TestAgent
             throw new \RuntimeException("Error starting test agent on pid {$pid}, command failed: {$command}");
         }
 
+        // Wait for the control server to be ready to accept HTTP requests
+        $controlServerAddress = "127.0.0.1:{$this->controlServerPort}";
+        $streamContext = stream_context_create(['http' => ['timeout' => 1]]);
+
+        while (true) {
+            $response = @file_get_contents("http://{$controlServerAddress}/status", false, $streamContext);
+
+            if ($response !== false) {
+                break;
+            }
+
+            if (microtime(true) - $startTime > $timeout) {
+                $this->stopTestAgent();
+                throw new \RuntimeException("Timeout waiting for control server to start on {$controlServerAddress}");
+            }
+
+            usleep(10000);
+        }
+
         return $address;
     }
 
@@ -196,8 +215,7 @@ trait TestAgent
     /**
      * Stop the test agent and return stderr output.
      *
-     * This sends SIGTERM for graceful shutdown, which will drain the queue
-     * before exiting (controlled by --drain-timeout).
+     * This waits for the queue to drain via the control server, then kills the process.
      *
      * @return string the stderr output from the agent
      */
@@ -207,30 +225,23 @@ trait TestAgent
             throw new \RuntimeException('There is no test agent instance running.');
         }
 
-        $status = proc_get_status($this->agentProcess);
+        // Wait for the queue to drain before killing the process
+        $this->waitForQueueDrain();
+
+        for ($i = 0; $i < 20; ++$i) {
+            $status = proc_get_status($this->agentProcess);
+
+            if (!$status['running']) {
+                break;
+            }
+
+            $this->killAgentProcess($status['pid']);
+
+            usleep(10000);
+        }
 
         if ($status['running']) {
-            // Send SIGTERM for graceful shutdown (agent will drain queue before exiting)
-            $this->terminateAgentProcess($status['pid']);
-
-            // Wait for graceful shutdown (drain timeout + buffer)
-            $timeout = 15.0;
-            $startTime = microtime(true);
-
-            while (microtime(true) - $startTime < $timeout) {
-                $status = proc_get_status($this->agentProcess);
-
-                if (!$status['running']) {
-                    break;
-                }
-
-                usleep(10000);
-            }
-
-            // Force kill if still running
-            if ($status['running']) {
-                $this->killAgentProcess($status['pid']);
-            }
+            throw new \RuntimeException('Could not kill test agent');
         }
 
         stream_set_blocking($this->agentStderr, false);
@@ -242,20 +253,6 @@ trait TestAgent
         $this->agentStderr = null;
 
         return $stderrOutput;
-    }
-
-    /**
-     * Gracefully terminate the agent process using SIGTERM.
-     */
-    private function terminateAgentProcess(int $pid): void
-    {
-        if (\PHP_OS_FAMILY === 'Windows') {
-            // Windows doesn't have SIGTERM, use taskkill without /f for graceful termination
-            exec("taskkill /pid {$pid} /t");
-        } else {
-            // Send SIGTERM for graceful shutdown
-            exec("kill -TERM {$pid}");
-        }
     }
 
     private function killAgentProcess(int $pid): void
