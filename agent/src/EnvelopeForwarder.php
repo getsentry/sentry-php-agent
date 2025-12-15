@@ -6,6 +6,7 @@ namespace Sentry\Agent;
 
 use Psr\Http\Message\ResponseInterface;
 use React\Http\Browser;
+use React\Http\Message\ResponseException;
 use React\Promise\Internal\FulfilledPromise;
 use React\Promise\PromiseInterface;
 use Sentry\Dsn;
@@ -106,7 +107,19 @@ class EnvelopeForwarder
             \call_user_func($this->onEnvelopeSent, $response);
 
             return null;
-        }, $this->onEnvelopeError);
+        }, function (\Throwable $exception) use ($rateLimiter) {
+            // Handle rate limiting from error responses (React HTTP throws ResponseException for non-2xx)
+            if ($exception instanceof ResponseException) {
+                $response = $exception->getResponse();
+                $rateLimiter->handleResponse(
+                    new Response($response->getStatusCode(), $response->getHeaders(), $response->getBody()->getContents())
+                );
+            }
+
+            \call_user_func($this->onEnvelopeError, $exception);
+
+            return null;
+        });
     }
 
     private function getRateLimiter(Dsn $dsn): RateLimiter
