@@ -257,11 +257,9 @@ if (function_exists('pcntl_signal')) {
     pcntl_async_signals(true);
 } elseif (function_exists('sapi_windows_set_ctrl_handler')) {
     // Windows signal handling (PHP 7.4+)
-    sapi_windows_set_ctrl_handler(static function (int $event) use ($shutdown) {
+    sapi_windows_set_ctrl_handler(static function (int $event) use ($shutdown): void {
         // PHP_WINDOWS_EVENT_CTRL_C is only defined on Windows
         $shutdown(defined('PHP_WINDOWS_EVENT_CTRL_C') && $event === \PHP_WINDOWS_EVENT_CTRL_C ? \SIGINT : \SIGTERM);
-
-        return true; // Signal handled, don't execute default handler
     });
 }
 
