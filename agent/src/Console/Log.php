@@ -10,6 +10,7 @@ namespace Sentry\Agent\Console;
 class Log
 {
     private const LEVEL_INFO = 'INFO';
+    private const LEVEL_WARN = 'WARN';
     private const LEVEL_ERROR = 'ERROR';
     private const LEVEL_DEBUG = 'DEBUG';
 
@@ -30,6 +31,11 @@ class Log
     public static function info(string $message): void
     {
         self::output(self::LEVEL_INFO, $message);
+    }
+
+    public static function warn(string $message): void
+    {
+        self::output(self::LEVEL_WARN, $message);
     }
 
     public static function error(string $message): void

@@ -48,12 +48,13 @@ Options:
       --upstream-timeout=SECONDS        The timeout for the connection to Sentry (in seconds) [default: "2.0"]
       --upstream-concurrency=REQUESTS   Configures the amount of concurrent requests the agent is allowed to make towards Sentry [default: "10"]
       --queue-limit=ENVELOPES           How many envelopes we want to keep in memory before we start dropping them [default: "1000"]
+      --drain-timeout=SECONDS           Time to wait for the queue to drain on shutdown (in seconds) [default: "10.0"]
   -v, --verbose                         When supplied the agent will print debug messages to the console, otherwise only errors and info messages are printed
 
 HELP;
 }
 
-$options = getopt('h', ['listen::', 'upstream-timeout::', 'upstream-concurrency::', 'queue-limit::', 'help']);
+$options = getopt('h', ['listen::', 'upstream-timeout::', 'upstream-concurrency::', 'queue-limit::', 'drain-timeout::', 'help']);
 
 if ($options === false) {
     Log::error('Failed to parse command line options.');
@@ -120,6 +121,14 @@ if ($queueLimit < $upstreamConcurrency) {
     exit(1);
 }
 
+$drainTimeout = (float) $getOption('drain-timeout', 10.0);
+
+if ($drainTimeout < 0) {
+    Log::error('The drain timeout must be a non-negative number.');
+
+    exit(1);
+}
+
 Log::info("Starting Sentry Agent ({$sentryAgentVersion}), listening on {$listenAddress} (timeout:{$upstreamTimeout}, concurrency:{$upstreamConcurrency}, queue:{$queueLimit})");
 
 $forwarder = new EnvelopeForwarder(
@@ -182,5 +191,62 @@ $server = new Server(
 );
 
 $server->run();
+
+// Set up graceful shutdown handling
+$isShuttingDown = false;
+
+$shutdown = function (int $signal) use ($server, $queue, $drainTimeout, &$isShuttingDown) {
+    if ($isShuttingDown) {
+        return;
+    }
+
+    $isShuttingDown = true;
+
+    $signalName = $signal === \SIGTERM ? 'SIGTERM' : ($signal === \SIGINT ? 'SIGINT' : "signal {$signal}");
+    Log::info("Received {$signalName}, stopping server and draining queue...");
+
+    $server->close();
+
+    $checkInterval = 0.1;
+    $elapsed = 0.0;
+
+    $drain = function () use (&$drain, $queue, &$elapsed, $drainTimeout, $checkInterval) {
+        $remaining = count($queue);
+
+        if ($remaining === 0) {
+            Log::info('Queue drained successfully, exiting.');
+            Loop::stop();
+
+            return;
+        }
+
+        if ($drainTimeout > 0 && $elapsed >= $drainTimeout) {
+            Log::warn("Drain timeout reached after {$drainTimeout}s, {$remaining} envelope(s) lost.");
+            Loop::stop();
+
+            return;
+        }
+
+        $elapsed += $checkInterval;
+        Loop::addTimer($checkInterval, $drain);
+    };
+
+    Loop::futureTick($drain);
+};
+
+if (function_exists('pcntl_signal')) {
+    // Unix signal handling
+    pcntl_signal(\SIGTERM, $shutdown);
+    pcntl_signal(\SIGINT, $shutdown);
+    pcntl_async_signals(true);
+} elseif (\function_exists('sapi_windows_set_ctrl_handler')) {
+    // Windows signal handling (PHP 7.4+)
+    sapi_windows_set_ctrl_handler(static function (int $event) use ($shutdown) {
+        // PHP_WINDOWS_EVENT_CTRL_C is only defined on Windows
+        $shutdown(\defined('PHP_WINDOWS_EVENT_CTRL_C') && $event === \PHP_WINDOWS_EVENT_CTRL_C ? \SIGINT : \SIGTERM);
+
+        return true; // Signal handled, don't execute default handler
+    });
+}
 
 Loop::run();

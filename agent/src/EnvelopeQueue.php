@@ -9,7 +9,7 @@ use Clue\React\Mq\Queue;
 /**
  * @internal
  */
-class EnvelopeQueue
+class EnvelopeQueue implements \Countable
 {
     /**
      * @var Queue<null>
@@ -27,5 +27,13 @@ class EnvelopeQueue
     public function enqueue(Envelope $envelope): void
     {
         ($this->queue)($envelope);
+    }
+
+    /**
+     * Returns the number of envelopes currently in the queue (pending + in-flight).
+     */
+    public function count(): int
+    {
+        return \count($this->queue);
     }
 }

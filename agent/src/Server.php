@@ -26,6 +26,11 @@ class Server
     private $uri;
 
     /**
+     * @var SocketServer|null
+     */
+    private $socket;
+
+    /**
      * @var callable(\Throwable): void
      */
     private $onServerError;
@@ -60,9 +65,9 @@ class Server
 
     public function run(): void
     {
-        $socket = new SocketServer($this->uri);
+        $this->socket = new SocketServer($this->uri);
 
-        $socket->on('connection', function (ConnectionInterface $connection): void {
+        $this->socket->on('connection', function (ConnectionInterface $connection): void {
             $messageLength = 0;
             $connectionBuffer = '';
 
@@ -82,7 +87,7 @@ class Server
 
                         if ($messageLength - 4 > self::MAX_ENVELOPE_SIZE) {
                             \call_user_func($this->onConnectionError, new \RuntimeException(
-                                sprintf('Envelope size of %d bytes exceeds maximum allowed size of %d bytes.', $messageLength - 4, self::MAX_ENVELOPE_SIZE)
+                                \sprintf('Envelope size of %d bytes exceeds maximum allowed size of %d bytes.', $messageLength - 4, self::MAX_ENVELOPE_SIZE)
                             ));
 
                             $connection->close();
@@ -119,8 +124,19 @@ class Server
             });
         });
 
-        $socket->on('error', function (\Throwable $exception) {
+        $this->socket->on('error', function (\Throwable $exception) {
             \call_user_func($this->onServerError, $exception);
         });
+    }
+
+    /**
+     * Stops accepting new connections. Existing connections will continue to be processed.
+     */
+    public function close(): void
+    {
+        if ($this->socket !== null) {
+            $this->socket->close();
+            $this->socket = null;
+        }
     }
 }
