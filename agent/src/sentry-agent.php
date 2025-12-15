@@ -194,7 +194,7 @@ $server = new Server(
 
 try {
     $server->run();
-} catch (\RuntimeException $e) {
+} catch (RuntimeException $e) {
     Log::error("Failed to start server on {$listenAddress}: {$e->getMessage()}");
     exit(1);
 }
@@ -209,7 +209,7 @@ if ($controlServerAddress !== null) {
 
     try {
         $controlServer->run();
-    } catch (\RuntimeException $e) {
+    } catch (RuntimeException $e) {
         Log::error("Failed to start control server on {$controlServerAddress}: {$e->getMessage()}");
         $server->close();
         exit(1);
