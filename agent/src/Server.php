@@ -6,6 +6,7 @@ namespace Sentry\Agent;
 
 use React\Socket\ConnectionInterface;
 use React\Socket\SocketServer;
+use Sentry\Agent\Exceptions\MalformedEnvelope;
 
 /**
  * @internal
@@ -13,9 +14,21 @@ use React\Socket\SocketServer;
 class Server
 {
     /**
+     * Maximum envelope size in bytes (200MB as per Sentry envelope size limits).
+     *
+     * @see https://develop.sentry.dev/sdk/data-model/envelopes/#size-limits
+     */
+    private const MAX_ENVELOPE_SIZE = 200 * 1024 * 1024;
+
+    /**
      * @var string
      */
     private $uri;
+
+    /**
+     * @var SocketServer|null
+     */
+    private $socket;
 
     /**
      * @var callable(\Throwable): void
@@ -52,13 +65,13 @@ class Server
 
     public function run(): void
     {
-        $socket = new SocketServer($this->uri);
+        $this->socket = new SocketServer($this->uri);
 
-        $socket->on('connection', function (ConnectionInterface $connection): void {
+        $this->socket->on('connection', function (ConnectionInterface $connection): void {
             $messageLength = 0;
             $connectionBuffer = '';
 
-            $connection->on('data', function (string $chunk) use (&$connectionBuffer, &$messageLength) {
+            $connection->on('data', function (string $chunk) use ($connection, &$connectionBuffer, &$messageLength) {
                 $connectionBuffer .= $chunk;
 
                 while (\strlen($connectionBuffer) >= 4) {
@@ -69,14 +82,29 @@ class Server
                             throw new \RuntimeException('Unable to unpack the header received from the client.');
                         }
 
+                        // The message length includes the 4 bytes of the header itself
                         $messageLength = $unpackedHeader[1];
+
+                        if ($messageLength - 4 > self::MAX_ENVELOPE_SIZE) {
+                            \call_user_func($this->onConnectionError, new \RuntimeException(
+                                \sprintf('Envelope size of %d bytes exceeds maximum allowed size of %d bytes.', $messageLength - 4, self::MAX_ENVELOPE_SIZE)
+                            ));
+
+                            $connection->close();
+
+                            return;
+                        }
                     }
 
                     if (\strlen($connectionBuffer) < $messageLength) {
                         break;
                     }
 
-                    \call_user_func($this->onEnvelopeReceived, new Envelope(substr($connectionBuffer, 4, $messageLength)));
+                    try {
+                        \call_user_func($this->onEnvelopeReceived, Envelope::fromString(substr($connectionBuffer, 4, $messageLength - 4)));
+                    } catch (MalformedEnvelope $e) {
+                        \call_user_func($this->onConnectionError, $e);
+                    }
 
                     $connectionBuffer = substr($connectionBuffer, $messageLength);
                     $messageLength = 0;
@@ -96,8 +124,19 @@ class Server
             });
         });
 
-        $socket->on('error', function (\Throwable $exception) {
+        $this->socket->on('error', function (\Throwable $exception) {
             \call_user_func($this->onServerError, $exception);
         });
+    }
+
+    /**
+     * Stops accepting new connections. Existing connections will continue to be processed.
+     */
+    public function close(): void
+    {
+        if ($this->socket !== null) {
+            $this->socket->close();
+            $this->socket = null;
+        }
     }
 }
