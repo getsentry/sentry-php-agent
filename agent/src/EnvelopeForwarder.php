@@ -7,11 +7,12 @@ namespace Sentry\Agent;
 use Psr\Http\Message\ResponseInterface;
 use React\Http\Browser;
 use React\Http\Message\ResponseException;
-use React\Promise\Internal\FulfilledPromise;
 use React\Promise\PromiseInterface;
 use Sentry\Dsn;
 use Sentry\HttpClient\Response;
 use Sentry\Transport\RateLimiter;
+
+use function React\Promise\resolve;
 
 /**
  * @internal
@@ -79,7 +80,7 @@ class EnvelopeForwarder
 
         // When the envelope is empty, we don't need to send it
         if ($envelope->isEmpty()) {
-            return new FulfilledPromise();
+            return resolve(null);
         }
 
         $authHeader = [

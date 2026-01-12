@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use React\EventLoop\Loop;
 use Sentry\Agent\Console\Log;
+use Sentry\Agent\ControlServer;
 use Sentry\Agent\Envelope;
 use Sentry\Agent\EnvelopeForwarder;
 use Sentry\Agent\EnvelopeQueue;
@@ -49,12 +50,13 @@ Options:
       --upstream-concurrency=REQUESTS   Configures the amount of concurrent requests the agent is allowed to make towards Sentry [default: "10"]
       --queue-limit=ENVELOPES           How many envelopes we want to keep in memory before we start dropping them [default: "1000"]
       --drain-timeout=SECONDS           Time to wait for the queue to drain on shutdown (in seconds) [default: "10.0"]
+      --control-server=ADDRESS          Enable the HTTP control server on the specified address (e.g., "127.0.0.1:5149")
   -v, --verbose                         When supplied the agent will print debug messages to the console, otherwise only errors and info messages are printed
 
 HELP;
 }
 
-$options = getopt('h', ['listen::', 'upstream-timeout::', 'upstream-concurrency::', 'queue-limit::', 'drain-timeout::', 'help']);
+$options = getopt('h', ['listen::', 'upstream-timeout::', 'upstream-concurrency::', 'queue-limit::', 'drain-timeout::', 'control-server::', 'help']);
 
 if ($options === false) {
     Log::error('Failed to parse command line options.');
@@ -190,12 +192,34 @@ $server = new Server(
     }
 );
 
-$server->run();
+try {
+    $server->run();
+} catch (RuntimeException $e) {
+    Log::error("Failed to start server on {$listenAddress}: {$e->getMessage()}");
+    exit(1);
+}
+
+$controlServerAddress = $getOption('control-server');
+$controlServer = null;
+
+if ($controlServerAddress !== null) {
+    Log::info("Starting control server on {$controlServerAddress}");
+
+    $controlServer = new ControlServer($controlServerAddress, $queue);
+
+    try {
+        $controlServer->run();
+    } catch (RuntimeException $e) {
+        Log::error("Failed to start control server on {$controlServerAddress}: {$e->getMessage()}");
+        $server->close();
+        exit(1);
+    }
+}
 
 // Set up graceful shutdown handling
 $isShuttingDown = false;
 
-$shutdown = function (int $signal) use ($server, $queue, $drainTimeout, &$isShuttingDown) {
+$shutdown = function (int $signal) use ($server, $controlServer, $queue, $drainTimeout, &$isShuttingDown) {
     if ($isShuttingDown) {
         return;
     }
@@ -206,6 +230,10 @@ $shutdown = function (int $signal) use ($server, $queue, $drainTimeout, &$isShut
     Log::info("Received {$signalName}, stopping server and draining queue...");
 
     $server->close();
+
+    if ($controlServer !== null) {
+        $controlServer->close();
+    }
 
     $checkInterval = 0.1;
     $elapsed = 0.0;
@@ -239,13 +267,11 @@ if (function_exists('pcntl_signal')) {
     pcntl_signal(\SIGTERM, $shutdown);
     pcntl_signal(\SIGINT, $shutdown);
     pcntl_async_signals(true);
-} elseif (\function_exists('sapi_windows_set_ctrl_handler')) {
+} elseif (function_exists('sapi_windows_set_ctrl_handler')) {
     // Windows signal handling (PHP 7.4+)
-    sapi_windows_set_ctrl_handler(static function (int $event) use ($shutdown) {
+    sapi_windows_set_ctrl_handler(static function (int $event) use ($shutdown): void {
         // PHP_WINDOWS_EVENT_CTRL_C is only defined on Windows
-        $shutdown(\defined('PHP_WINDOWS_EVENT_CTRL_C') && $event === \PHP_WINDOWS_EVENT_CTRL_C ? \SIGINT : \SIGTERM);
-
-        return true; // Signal handled, don't execute default handler
+        $shutdown(defined('PHP_WINDOWS_EVENT_CTRL_C') && $event === \PHP_WINDOWS_EVENT_CTRL_C ? \SIGINT : \SIGTERM);
     });
 }
 

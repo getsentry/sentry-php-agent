@@ -13,7 +13,7 @@
     "require": {
         "php": "^7.2|^8",
         "ext-json": "*",
-        "sentry/sentry": "^4.15.0"
+        "sentry/sentry": "^4.19.1"
     },
     "autoload": {
         "psr-4": {
