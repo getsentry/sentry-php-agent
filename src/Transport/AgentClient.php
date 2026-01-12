@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Sentry\Agent\Transport;
 
+use Psr\Log\LoggerInterface;
 use Sentry\HttpClient\HttpClientInterface;
 use Sentry\HttpClient\Request;
 use Sentry\HttpClient\Response;
@@ -11,6 +12,11 @@ use Sentry\Options;
 
 class AgentClient implements HttpClientInterface
 {
+    /**
+     * The maximum message size that can be sent (2^32 - 1 bytes).
+     */
+    private const MAX_MESSAGE_SIZE = 4294967295;
+
     /**
      * @var string
      */
@@ -31,11 +37,35 @@ class AgentClient implements HttpClientInterface
      */
     private $fallbackTransport;
 
-    public function __construct(string $host = '127.0.0.1', int $port = 5148, ?HttpClientInterface $fallbackTransport = null)
-    {
+    /**
+     * @var LoggerInterface|null
+     */
+    private $logger;
+
+    /**
+     * @var int
+     */
+    private $connectTimeoutMs;
+
+    /**
+     * @var int
+     */
+    private $socketTimeoutMs;
+
+    public function __construct(
+        string $host = '127.0.0.1',
+        int $port = 5148,
+        ?HttpClientInterface $fallbackTransport = null,
+        ?LoggerInterface $logger = null,
+        int $connectTimeoutMs = 10,
+        int $socketTimeoutMs = 50
+    ) {
         $this->host = $host;
         $this->port = $port;
         $this->fallbackTransport = $fallbackTransport;
+        $this->logger = $logger;
+        $this->connectTimeoutMs = $connectTimeoutMs;
+        $this->socketTimeoutMs = $socketTimeoutMs;
     }
 
     public function __destruct()
@@ -52,16 +82,24 @@ class AgentClient implements HttpClientInterface
             return true;
         }
 
-        // We set the timeout to 10ms to avoid blocking the request for too long if the agent is not running
-        // @TODO: 10ms should be low enough? Do we want to go lower and/or make this configurable? Only applies to initial connection.
-        $socket = fsockopen($this->host, $this->port, $errorNo, $errorMsg, 0.01);
+        $socket = @fsockopen($this->host, $this->port, $errorNo, $errorMsg, $this->connectTimeoutMs / 1000);
 
-        // @TODO: Error handling? See $errorNo and $errorMsg
         if ($socket === false) {
+            if ($this->logger !== null) {
+                $this->logger->warning('Failed to connect to the Sentry Agent at {host}:{port}: [{errorNo}] {errorMsg}', [
+                    'host' => $this->host,
+                    'port' => $this->port,
+                    'errorNo' => $errorNo,
+                    'errorMsg' => $errorMsg,
+                ]);
+            }
+
             return false;
         }
 
-        // @TODO: Set a timeout for the socket to prevent blocking (?) if the socket connection stops working after the connection (e.g. the agent is stopped) if needed
+        // Set a timeout for the socket to prevent blocking if the agent becomes unresponsive
+        stream_set_timeout($socket, 0, $this->socketTimeoutMs * 1000);
+
         $this->socket = $socket;
 
         return true;
@@ -81,14 +119,41 @@ class AgentClient implements HttpClientInterface
     private function send(string $message): bool
     {
         if (!$this->connect()) {
+            if ($this->logger !== null) {
+                $this->logger->error('Unable to connect to the Sentry Agent, is it running?');
+            }
+
             return false;
         }
 
-        // @TODO: Make sure we don't send more than 2^32 - 1 bytes
-        $contentLength = pack('N', \strlen($message) + 4);
+        $messageSize = \strlen($message) + 4;
 
-        // @TODO: Better error handling in case the agent was connected but is no longer available!?
-        return fwrite($this->socket, $contentLength . $message) > 0;
+        if ($messageSize > self::MAX_MESSAGE_SIZE) {
+            if ($this->logger !== null) {
+                $this->logger->error('Message size {size} bytes exceeds maximum allowed size of {max} bytes', [
+                    'size' => $messageSize,
+                    'max' => self::MAX_MESSAGE_SIZE,
+                ]);
+            }
+
+            return false;
+        }
+
+        $contentLength = pack('N', $messageSize);
+
+        $result = @fwrite($this->socket, $contentLength . $message);
+
+        if ($result === false || $result === 0) {
+            if ($this->logger !== null) {
+                $this->logger->warning('Failed to write to the Sentry Agent socket, the agent may have disconnected');
+            }
+
+            $this->disconnect();
+
+            return false;
+        }
+
+        return true;
     }
 
     public function sendRequest(Request $request, Options $options): Response
@@ -108,6 +173,6 @@ class AgentClient implements HttpClientInterface
             return $this->fallbackTransport->sendRequest($request, $options);
         }
 
-        return new Response(500, [], 'Unable to connect to the Sentry Agent, is it running?');
+        return new Response(500, [], 'Unable to send request to Sentry Agent and no fallback transport is configured');
     }
 }
