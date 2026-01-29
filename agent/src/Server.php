@@ -111,7 +111,7 @@ class Server
                 }
             });
 
-            $connection->on('end', function () {});
+            $connection->on('end', static function () {});
 
             $connection->on('error', function (\Throwable $exception) use (&$connectionBuffer) {
                 \call_user_func($this->onConnectionError, $exception);
@@ -119,7 +119,7 @@ class Server
                 $connectionBuffer = '';
             });
 
-            $connection->on('close', function () use (&$connectionBuffer) {
+            $connection->on('close', static function () use (&$connectionBuffer) {
                 $connectionBuffer = '';
             });
         });
