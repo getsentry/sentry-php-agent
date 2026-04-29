@@ -55,6 +55,20 @@ jobs:
       - name: Test PHAR
         run: php bin/sentry-agent help
 
+      - name: Test PHAR refuses mismatched signature
+        run: |
+          cp bin/sentry-agent /tmp/sentry-agent
+          echo "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" > /tmp/sentry-agent.sig
+
+          if php /tmp/sentry-agent help > /tmp/sentry-agent-output 2>&1; then
+            cat /tmp/sentry-agent-output
+            echo "Expected the PHAR to reject the mismatched signature."
+            exit 1
+          fi
+
+          cat /tmp/sentry-agent-output
+          grep -q "PHAR signature mismatch" /tmp/sentry-agent-output
+
       - name: Commit PHAR
         uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
         with:
