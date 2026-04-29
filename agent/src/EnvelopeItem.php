@@ -9,10 +9,16 @@ namespace Sentry\Agent;
  *
  * @phpstan-type EnvelopeItemHeader array{
  *     type: string,
+ *     length?: int,
  * }
  */
 class EnvelopeItem
 {
+    private const EVENT_ITEM_TYPES_WITH_INGEST_PATH = [
+        'event' => true,
+        'transaction' => true,
+    ];
+
     /**
      * @var EnvelopeItemHeader The envelope item header
      */
@@ -44,6 +50,39 @@ class EnvelopeItem
     public function getData(): string
     {
         return $this->data;
+    }
+
+    public function appendIngestPath(string $version): void
+    {
+        if (!isset(self::EVENT_ITEM_TYPES_WITH_INGEST_PATH[$this->header['type']])) {
+            return;
+        }
+
+        $payload = json_decode($this->data, true);
+
+        if (!\is_array($payload)) {
+            return;
+        }
+
+        if (!isset($payload['ingest_path']) || !\is_array($payload['ingest_path'])) {
+            $payload['ingest_path'] = [];
+        }
+
+        $payload['ingest_path'][] = [
+            'version' => $version,
+        ];
+
+        $data = json_encode($payload);
+
+        if ($data === false) {
+            return;
+        }
+
+        $this->data = $data;
+
+        if (isset($this->header['length'])) {
+            $this->header['length'] = \strlen($this->data);
+        }
     }
 
     public function __toString()
