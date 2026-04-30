@@ -8,7 +8,17 @@ use Sentry\Agent\ControlServer;
 use Sentry\Agent\Envelope;
 use Sentry\Agent\EnvelopeForwarder;
 use Sentry\Agent\EnvelopeQueue;
+use Sentry\Agent\PharSignatureVerifier;
 use Sentry\Agent\Server;
+
+require_once __DIR__ . '/PharSignatureVerifier.php';
+
+try {
+    PharSignatureVerifier::verifyRunningPhar();
+} catch (RuntimeException $e) {
+    fwrite(\STDERR, "sentry-agent [ERROR] {$e->getMessage()}\n");
+    exit(1);
+}
 
 $vendorPath = __DIR__ . '/../vendor';
 
