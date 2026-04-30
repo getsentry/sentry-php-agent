@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use Sentry\Agent\Transport\AgentClientBuilder;
+
 require_once __DIR__ . '/../vendor/autoload.php';
 
 Sentry\init([
     'dsn' => '___PUBLIC_DSN___',
-    'http_client' => new Sentry\Agent\Transport\AgentClient(),
+    'http_client' => AgentClientBuilder::create()->getClient(),
 ]);
 
 $startTime = microtime(true);

@@ -12,37 +12,20 @@
     ],
     "require": {
         "php": "^7.2|^8",
-        "ext-json": "*",
-        "sentry/sentry": "^4.19.1"
-    },
-    "autoload": {
-        "psr-4": {
-            "Sentry\\Agent\\": "src/"
-        }
+        "ext-json": "*"
     },
     "require-dev": {
-        "friendsofphp/php-cs-fixer": "^3.70",
-        "phpstan/phpstan": "^2.1",
-        "phpunit/phpunit": "^8.5|^9.6"
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "Sentry\\Agent\\Tests\\": "tests/"
-        }
+        "friendsofphp/php-cs-fixer": "^3.70"
     },
     "bin": [
         "bin/sentry-agent"
     ],
     "scripts": {
         "check": [
-            "@cs-check",
-            "@phpstan",
-            "@tests"
+            "@cs-check"
         ],
-        "tests": "vendor/bin/phpunit --verbose",
         "cs-check": "vendor/bin/php-cs-fixer fix --verbose --diff --dry-run",
         "cs-fix": "vendor/bin/php-cs-fixer fix --verbose --diff",
-        "phpstan": "vendor/bin/phpstan analyse",
         "build": "scripts/build.sh"
     },
     "config": {

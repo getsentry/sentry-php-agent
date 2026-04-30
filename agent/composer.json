@@ -16,7 +16,7 @@
         "clue/mq-react": "^1.6",
         "react/http": "^1.11",
         "react/socket": "^1.16",
-        "sentry/sentry": "^4.19.1"
+        "sentry/sentry": "dev-master as 4.26.0"
     },
     "autoload": {
         "psr-4": {
