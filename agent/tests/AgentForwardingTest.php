@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Sentry\Agent\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Sentry\Agent\EnvelopeForwarder;
 use Sentry\Event;
 use Sentry\Options;
 use Sentry\Serializer\PayloadSerializer;
@@ -32,6 +33,10 @@ class AgentForwardingTest extends TestCase
         $this->assertEquals(1, $serverOutput['request_count']);
         $this->assertStringContainsString('Hello from agent test!', $serverOutput['body']);
         $this->assertStringContainsString('"type":"event"', $serverOutput['body']);
+        $this->assertStringContainsString(
+            '"ingest_path":[{"version":"' . str_replace('/', '\/', EnvelopeForwarder::IDENTIFIER . '/' . EnvelopeForwarder::VERSION) . '"}]',
+            $serverOutput['body']
+        );
 
         // Verify the correct headers were sent
         $this->assertArrayHasKey('X-Sentry-Auth', $serverOutput['headers']);
