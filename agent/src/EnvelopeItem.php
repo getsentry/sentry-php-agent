@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Sentry\Agent;
 
+use Sentry\Util\JSON;
+
 /**
  * @internal
  *
@@ -72,9 +74,9 @@ class EnvelopeItem
             'version' => $version,
         ];
 
-        $data = json_encode($payload);
-
-        if ($data === false) {
+        try {
+            $data = JSON::encode($payload);
+        } catch (\Throwable $e) {
             return;
         }
 
