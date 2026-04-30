@@ -83,9 +83,12 @@ class EnvelopeForwarder
             return resolve(null);
         }
 
+        $client = self::IDENTIFIER . '/' . self::VERSION;
+        $envelope->appendIngestPath($client);
+
         $authHeader = [
             'sentry_version=' . self::PROTOCOL_VERSION,
-            'sentry_client=' . self::IDENTIFIER . '/' . self::VERSION,
+            'sentry_client=' . $client,
             'sentry_key=' . $dsn->getPublicKey(),
         ];
 
@@ -95,7 +98,7 @@ class EnvelopeForwarder
         return (new Browser())->withTimeout($this->timeout)->post(
             $dsn->getEnvelopeApiEndpointUrl(),
             [
-                'User-Agent' => self::IDENTIFIER . '/' . self::VERSION,
+                'User-Agent' => $client,
                 'Content-Type' => Envelope::CONTENT_TYPE,
                 'X-Sentry-Auth' => 'Sentry ' . implode(', ', $authHeader),
             ],

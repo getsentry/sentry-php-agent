@@ -77,6 +77,13 @@ class Envelope
         );
     }
 
+    public function appendIngestPath(string $version): void
+    {
+        foreach ($this->items as $item) {
+            $item->appendIngestPath($version);
+        }
+    }
+
     public function __toString()
     {
         $data = implode(

@@ -27,27 +27,27 @@ jobs:
           - ubuntu-latest
           - windows-latest
         php:
-          - { version: '7.2', phpunit: '^8.5.40' }
-          - { version: '7.3', phpunit: '^9.6.21' }
-          - { version: '7.4', phpunit: '^9.6.21' }
-          - { version: '8.0', phpunit: '^9.6.21' }
-          - { version: '8.1', phpunit: '^9.6.21' }
-          - { version: '8.2', phpunit: '^9.6.21' }
-          - { version: '8.3', phpunit: '^9.6.21' }
-          - { version: '8.4', phpunit: '^9.6.21' }
-          - { version: '8.5', phpunit: '^9.6.25' }
+          - { version: '7.2', phpunit: '^8.5.52' }
+          - { version: '7.3', phpunit: '^9.6.33' }
+          - { version: '7.4', phpunit: '^9.6.33' }
+          - { version: '8.0', phpunit: '^9.6.33' }
+          - { version: '8.1', phpunit: '^9.6.33' }
+          - { version: '8.2', phpunit: '^9.6.33' }
+          - { version: '8.3', phpunit: '^9.6.33' }
+          - { version: '8.4', phpunit: '^9.6.33' }
+          - { version: '8.5', phpunit: '^9.6.33' }
         dependencies:
           - lowest
           - highest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 2
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@728c6c6b8cf02c2e48117716a91ee48313958a19 # v2
         with:
           php-version: ${{ matrix.php.version }}
           coverage: xdebug
@@ -61,7 +61,7 @@ jobs:
         shell: bash
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ steps.composer-cache.outputs.directory }}
           key: ${{ runner.os }}-${{ matrix.php.version }}-composer-${{ matrix.dependencies }}-${{ hashFiles('**/composer.lock') }}

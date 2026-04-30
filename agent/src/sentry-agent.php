@@ -8,7 +8,17 @@ use Sentry\Agent\ControlServer;
 use Sentry\Agent\Envelope;
 use Sentry\Agent\EnvelopeForwarder;
 use Sentry\Agent\EnvelopeQueue;
+use Sentry\Agent\PharSignatureVerifier;
 use Sentry\Agent\Server;
+
+require_once __DIR__ . '/PharSignatureVerifier.php';
+
+try {
+    PharSignatureVerifier::verifyRunningPhar();
+} catch (RuntimeException $e) {
+    fwrite(\STDERR, "sentry-agent [ERROR] {$e->getMessage()}\n");
+    exit(1);
+}
 
 $vendorPath = __DIR__ . '/../vendor';
 
@@ -135,7 +145,7 @@ Log::info("Starting Sentry Agent ({$sentryAgentVersion}), listening on {$listenA
 
 $forwarder = new EnvelopeForwarder(
     $upstreamTimeout,
-    function (Psr\Http\Message\ResponseInterface $response) {
+    static function (Psr\Http\Message\ResponseInterface $response) {
         if ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300) {
             if ($response->getStatusCode() === 200) {
                 $responseBody = json_decode($response->getBody()->getContents(), true);
@@ -156,7 +166,7 @@ $forwarder = new EnvelopeForwarder(
 
         return null;
     },
-    function (Throwable $exception) {
+    static function (Throwable $exception) {
         Log::error("Envelope send error: {$exception->getMessage()}");
 
         return null;
@@ -166,7 +176,7 @@ $forwarder = new EnvelopeForwarder(
 $queue = new EnvelopeQueue(
     $upstreamConcurrency,
     $queueLimit,
-    function (Envelope $envelope) use ($forwarder) {
+    static function (Envelope $envelope) use ($forwarder) {
         try {
             return $forwarder->forward($envelope);
         } catch (Exception $e) {
@@ -179,13 +189,13 @@ $queue = new EnvelopeQueue(
 
 $server = new Server(
     $listenAddress,
-    function (Throwable $exception) {
+    static function (Throwable $exception) {
         Log::error("Server error: {$exception->getMessage()}");
     },
-    function (Throwable $exception) {
+    static function (Throwable $exception) {
         Log::error("Incoming connection error: {$exception->getMessage()}");
     },
-    function (Envelope $envelope) use ($queue) {
+    static function (Envelope $envelope) use ($queue) {
         Log::debug('Envelope received, queueing forward to Sentry...');
 
         $queue->enqueue($envelope);
@@ -219,7 +229,7 @@ if ($controlServerAddress !== null) {
 // Set up graceful shutdown handling
 $isShuttingDown = false;
 
-$shutdown = function (int $signal) use ($server, $controlServer, $queue, $drainTimeout, &$isShuttingDown) {
+$shutdown = static function (int $signal) use ($server, $controlServer, $queue, $drainTimeout, &$isShuttingDown) {
     if ($isShuttingDown) {
         return;
     }
@@ -238,7 +248,7 @@ $shutdown = function (int $signal) use ($server, $controlServer, $queue, $drainT
     $checkInterval = 0.1;
     $elapsed = 0.0;
 
-    $drain = function () use (&$drain, $queue, &$elapsed, $drainTimeout, $checkInterval) {
+    $drain = static function () use (&$drain, $queue, &$elapsed, $drainTimeout, $checkInterval) {
         $remaining = count($queue);
 
         if ($remaining === 0) {

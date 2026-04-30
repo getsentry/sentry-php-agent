@@ -55,6 +55,12 @@ jobs:
       - name: Test PHAR
         run: php bin/sentry-agent help
 
+      - name: Test PHAR signature mismatch
+        run: |
+          cp bin/sentry-agent /tmp/sentry-agent
+          echo "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" > /tmp/sentry-agent.sig
+          ! php /tmp/sentry-agent help
+
       - name: Commit PHAR
         uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
         with:
