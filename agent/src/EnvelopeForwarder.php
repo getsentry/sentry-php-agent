@@ -92,17 +92,27 @@ class EnvelopeForwarder
             'sentry_key=' . $dsn->getPublicKey(),
         ];
 
-        // @TODO: Implement any number of missing options like the user-agent, encoding, proxy etc.
+        $headers = [
+            'User-Agent' => $client,
+            'Content-Type' => Envelope::CONTENT_TYPE,
+            'X-Sentry-Auth' => 'Sentry ' . implode(', ', $authHeader),
+        ];
 
-        // @TODO: We might want to replace this Browser API with a cURL implementation using curl_multi_exec
+        $body = (string) $envelope;
+
+        if (\extension_loaded('zlib')) {
+            $compressedBody = gzcompress($body, -1, \ZLIB_ENCODING_GZIP);
+
+            if ($compressedBody !== false) {
+                $headers['Content-Encoding'] = 'gzip';
+                $body = $compressedBody;
+            }
+        }
+
         return (new Browser())->withTimeout($this->timeout)->post(
             $dsn->getEnvelopeApiEndpointUrl(),
-            [
-                'User-Agent' => $client,
-                'Content-Type' => Envelope::CONTENT_TYPE,
-                'X-Sentry-Auth' => 'Sentry ' . implode(', ', $authHeader),
-            ],
-            (string) $envelope
+            $headers,
+            $body
         )->then(function (ResponseInterface $response) use ($rateLimiter) {
             $rateLimiter->handleResponse(
                 new Response($response->getStatusCode(), $response->getHeaders(), $response->getStatusCode() > 400 ? $response->getBody()->getContents() : '')

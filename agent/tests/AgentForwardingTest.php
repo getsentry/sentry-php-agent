@@ -61,6 +61,27 @@ class AgentForwardingTest extends TestCase
         $this->assertEquals(2, $serverOutput['request_count']);
     }
 
+    public function testAgentCompressesEnvelopeToUpstream(): void
+    {
+        if (!\extension_loaded('zlib')) {
+            $this->markTestSkipped('The zlib extension is required to test envelope compression.');
+        }
+
+        $serverAddress = $this->startTestServer();
+
+        $dsn = "http://publickey:@{$serverAddress}/200";
+
+        $this->startTestAgent();
+        $this->sendEnvelopeToAgent($this->createEnvelope($dsn, 'Compressed message'));
+        $this->stopTestAgent();
+
+        $serverOutput = $this->stopTestServer();
+
+        $this->assertTrue($serverOutput['compressed']);
+        $this->assertEquals('gzip', $serverOutput['headers']['Content-Encoding']);
+        $this->assertStringContainsString('Compressed message', $serverOutput['body']);
+    }
+
     public function testAgentRespectsRateLimiting(): void
     {
         $serverAddress = $this->startTestServer();
