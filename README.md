@@ -21,20 +21,22 @@ _Bad software is everywhere, and we're tired of it. Sentry is on a mission to he
 
 ### Install
 
-Install the agent using [Composer](https://getcomposer.org/).
+Install the agent alongside the [PHP SDK](https://github.com/getsentry/sentry-php) using [Composer](https://getcomposer.org/).
 
 ```bash
-composer require sentry/sentry-agent
+composer require sentry/sentry sentry/sentry-agent
 ```
 
 ### Configuration
 
-The agent is configured as a custom HTTP client for the [PHP](https://github.com/getsentry/sentry-php) (also [Symfony](https://github.com/getsentry/sentry-symfony) & [Laravel](https://github.com/getsentry/sentry-laravel)) SDKs.
+Use the SDK-provided agent client as the custom HTTP client for the [PHP](https://github.com/getsentry/sentry-php) (also [Symfony](https://github.com/getsentry/sentry-symfony) & [Laravel](https://github.com/getsentry/sentry-laravel)) SDKs.
 
 ```php
+use Sentry\Agent\Transport\AgentClientBuilder;
+
 Sentry\init([
     'dsn' => '___PUBLIC_DSN___',
-    'http_client' => new \Sentry\Agent\Transport\AgentClient(),
+    'http_client' => AgentClientBuilder::create()->getClient(),
 ]);
 ```
 
