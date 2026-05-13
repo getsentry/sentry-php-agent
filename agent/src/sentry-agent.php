@@ -61,12 +61,14 @@ Options:
       --queue-limit=ENVELOPES           How many envelopes we want to keep in memory before we start dropping them [default: "1000"]
       --drain-timeout=SECONDS           Time to wait for the queue to drain on shutdown (in seconds) [default: "10.0"]
       --control-server=ADDRESS          Enable the HTTP control server on the specified address (e.g., "127.0.0.1:5149")
+      --http-proxy=URL                  The HTTP CONNECT proxy URL for forwarding envelopes upstream (e.g., "http://127.0.0.1:8080")
+      --http-proxy-authentication=AUTH  Credentials for proxy basic authentication in "username:password" format
   -v, --verbose                         When supplied the agent will print debug messages to the console, otherwise only errors and info messages are printed
 
 HELP;
 }
 
-$options = getopt('h', ['listen::', 'upstream-timeout::', 'upstream-concurrency::', 'queue-limit::', 'drain-timeout::', 'control-server::', 'help']);
+$options = getopt('h', ['listen::', 'upstream-timeout::', 'upstream-concurrency::', 'queue-limit::', 'drain-timeout::', 'control-server::', 'http-proxy::', 'http-proxy-authentication::', 'help']);
 
 if ($options === false) {
     Log::error('Failed to parse command line options.');
@@ -141,37 +143,69 @@ if ($drainTimeout < 0) {
     exit(1);
 }
 
-Log::info("Starting Sentry Agent ({$sentryAgentVersion}), listening on {$listenAddress} (timeout:{$upstreamTimeout}, concurrency:{$upstreamConcurrency}, queue:{$queueLimit})");
+$httpProxy = $getOption('http-proxy');
 
-$forwarder = new EnvelopeForwarder(
-    $upstreamTimeout,
-    static function (Psr\Http\Message\ResponseInterface $response) {
-        if ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300) {
-            if ($response->getStatusCode() === 200) {
-                $responseBody = json_decode($response->getBody()->getContents(), true);
+if ($httpProxy !== null && !is_string($httpProxy)) {
+    Log::error('The http proxy must be a string value.');
 
-                $eventId = is_array($responseBody) ? $responseBody['id'] ?? null : null;
+    exit(1);
+}
 
-                if (!is_string($eventId)) {
-                    $eventId = '<unknown>';
+$httpProxyAuthentication = $getOption('http-proxy-authentication');
+
+if ($httpProxyAuthentication !== null && !is_string($httpProxyAuthentication)) {
+    Log::error('The http proxy authentication must be a string value.');
+
+    exit(1);
+}
+
+if ($httpProxyAuthentication !== null && $httpProxy === null) {
+    Log::error('The http proxy authentication option requires --http-proxy.');
+
+    exit(1);
+}
+
+$proxyLogContext = $httpProxy !== null ? ', proxy:enabled' : '';
+
+try {
+    $forwarder = new EnvelopeForwarder(
+        $upstreamTimeout,
+        static function (Psr\Http\Message\ResponseInterface $response) {
+            if ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300) {
+                if ($response->getStatusCode() === 200) {
+                    $responseBody = json_decode($response->getBody()->getContents(), true);
+
+                    $eventId = is_array($responseBody) ? $responseBody['id'] ?? null : null;
+
+                    if (!is_string($eventId)) {
+                        $eventId = '<unknown>';
+                    }
+
+                    Log::debug("Envelope sent successfully (ID: {$eventId}, http status: {$response->getStatusCode()}).");
+                } else {
+                    Log::debug("Envelope sent successfully (http status: {$response->getStatusCode()}).");
                 }
-
-                Log::debug("Envelope sent successfully (ID: {$eventId}, http status: {$response->getStatusCode()}).");
             } else {
-                Log::debug("Envelope sent successfully (http status: {$response->getStatusCode()}).");
+                Log::error("Envelope send error: {$response->getStatusCode()} {$response->getReasonPhrase()}");
             }
-        } else {
-            Log::error("Envelope send error: {$response->getStatusCode()} {$response->getReasonPhrase()}");
-        }
 
-        return null;
-    },
-    static function (Throwable $exception) {
-        Log::error("Envelope send error: {$exception->getMessage()}");
+            return null;
+        },
+        static function (Throwable $exception) {
+            Log::error("Envelope send error: {$exception->getMessage()}");
 
-        return null;
-    }
-);
+            return null;
+        },
+        $httpProxy,
+        $httpProxyAuthentication
+    );
+} catch (InvalidArgumentException $e) {
+    Log::error("Failed to configure http proxy: {$e->getMessage()}");
+
+    exit(1);
+}
+
+Log::info("Starting Sentry Agent ({$sentryAgentVersion}), listening on {$listenAddress} (timeout:{$upstreamTimeout}, concurrency:{$upstreamConcurrency}, queue:{$queueLimit}{$proxyLogContext})");
 
 $queue = new EnvelopeQueue(
     $upstreamConcurrency,
