@@ -61,6 +61,31 @@ class AgentForwardingTest extends TestCase
         $this->assertEquals(2, $serverOutput['request_count']);
     }
 
+    public function testAgentRejectsZeroLengthFrameWithoutBlockingEventLoop(): void
+    {
+        $this->startTestAgent();
+        
+        try {
+            $this->sendRawDataToAgent(pack('N', 0));
+
+            // Give the agent a chance to process the malformed frame before checking liveness.
+            usleep(100000);
+
+            $status = $this->getControlServerStatus(1.0);
+
+            if ($status === false) {
+                $this->forceStopTestAgent();
+            }
+
+            $this->assertTrue($status !== false, 'The control server should remain responsive after a zero-length frame.');
+            $this->assertSame(['queue_size' => 0], json_decode((string) $status, true));
+        } finally {
+            if ($this->agentProcess !== null) {
+                $this->stopTestAgent();
+            }
+        }
+    }
+
     public function testAgentCompressesEnvelopeToUpstream(): void
     {
         if (!\extension_loaded('zlib')) {

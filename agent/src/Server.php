@@ -85,6 +85,16 @@ class Server
                         // The message length includes the 4 bytes of the header itself
                         $messageLength = $unpackedHeader[1];
 
+                        if ($messageLength < 5) {
+                            \call_user_func($this->onConnectionError, new \RuntimeException(
+                                \sprintf('Invalid envelope frame length of %d bytes. The length must include the 4-byte header and at least 1 byte of payload.', $messageLength)
+                            ));
+
+                            $connection->close();
+
+                            return;
+                        }
+
                         if ($messageLength - 4 > self::MAX_ENVELOPE_SIZE) {
                             \call_user_func($this->onConnectionError, new \RuntimeException(
                                 \sprintf('Envelope size of %d bytes exceeds maximum allowed size of %d bytes.', $messageLength - 4, self::MAX_ENVELOPE_SIZE)
