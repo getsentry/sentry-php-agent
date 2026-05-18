@@ -13,6 +13,7 @@
     "require": {
         "php": "^7.2|^8.0",
         "ext-json": "*",
+        "clue/http-proxy-react": "^1.9",
         "clue/mq-react": "^1.6",
         "react/http": "^1.11",
         "react/socket": "^1.16",
