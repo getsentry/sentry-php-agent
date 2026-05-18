@@ -127,6 +127,19 @@ trait TestAgent
      */
     public function sendEnvelopeToAgent(string $envelope): void
     {
+        // The agent uses a 4-byte big-endian length prefix protocol
+        // The length includes the 4 bytes of the header itself
+        $length = \strlen($envelope) + 4;
+        $header = pack('N', $length);
+
+        $this->sendRawDataToAgent($header . $envelope);
+    }
+
+    /**
+     * Send raw data to the test agent.
+     */
+    public function sendRawDataToAgent(string $data): void
+    {
         if ($this->agentProcess === null) {
             throw new \RuntimeException('There is no test agent instance running.');
         }
@@ -138,17 +151,29 @@ trait TestAgent
             throw new \RuntimeException("Failed to connect to test agent: {$errstr} ({$errno})");
         }
 
-        // The agent uses a 4-byte big-endian length prefix protocol
-        // The length includes the 4 bytes of the header itself
-        $length = \strlen($envelope) + 4;
-        $header = pack('N', $length);
-
-        fwrite($socket, $header . $envelope);
+        fwrite($socket, $data);
 
         // Gracefully shutdown the write side, ensuring all data is sent before closing
         stream_socket_shutdown($socket, \STREAM_SHUT_WR);
 
         fclose($socket);
+    }
+
+    /**
+     * Get the raw control server status response.
+     *
+     * @return string|false
+     */
+    public function getControlServerStatus(float $timeout = 1.0)
+    {
+        if ($this->agentProcess === null) {
+            throw new \RuntimeException('There is no test agent instance running.');
+        }
+
+        $controlServerAddress = "127.0.0.1:{$this->controlServerPort}";
+        $streamContext = stream_context_create(['http' => ['timeout' => $timeout]]);
+
+        return @file_get_contents("http://{$controlServerAddress}/status", false, $streamContext);
     }
 
     /**
@@ -222,6 +247,15 @@ trait TestAgent
 
         // Wait for the queue to drain before killing the process
         $this->waitForQueueDrain();
+
+        return $this->forceStopTestAgent();
+    }
+
+    protected function forceStopTestAgent(): string
+    {
+        if (!$this->agentProcess) {
+            throw new \RuntimeException('There is no test agent instance running.');
+        }
 
         for ($i = 0; $i < 20; ++$i) {
             $status = proc_get_status($this->agentProcess);
