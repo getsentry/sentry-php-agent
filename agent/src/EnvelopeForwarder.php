@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Sentry\Agent;
 
+use Clue\React\HttpProxy\ProxyConnector;
 use Psr\Http\Message\ResponseInterface;
 use React\Http\Browser;
 use React\Http\Message\ResponseException;
 use React\Promise\PromiseInterface;
+use React\Socket\Connector;
 use Sentry\Dsn;
 use Sentry\HttpClient\Response;
 use Sentry\Transport\RateLimiter;
@@ -40,6 +42,11 @@ class EnvelopeForwarder
     private $timeout;
 
     /**
+     * @var Browser
+     */
+    private $browser;
+
+    /**
      * @var callable(ResponseInterface): null
      */
     private $onEnvelopeSent;
@@ -58,9 +65,10 @@ class EnvelopeForwarder
      * @param callable(ResponseInterface): null $onEnvelopeSent  called when the envelope is sent
      * @param callable(\Throwable): null        $onEnvelopeError called when the envelope fails to send
      */
-    public function __construct(float $timeout, callable $onEnvelopeSent, callable $onEnvelopeError)
+    public function __construct(float $timeout, callable $onEnvelopeSent, callable $onEnvelopeError, ?string $httpProxy = null, ?string $httpProxyAuthentication = null)
     {
         $this->timeout = $timeout;
+        $this->browser = $this->createBrowser($httpProxy, $httpProxyAuthentication);
         $this->onEnvelopeSent = $onEnvelopeSent;
         $this->onEnvelopeError = $onEnvelopeError;
     }
@@ -109,7 +117,7 @@ class EnvelopeForwarder
             }
         }
 
-        return (new Browser())->withTimeout($this->timeout)->post(
+        return $this->browser->withTimeout($this->timeout)->post(
             $dsn->getEnvelopeApiEndpointUrl(),
             $headers,
             $body
@@ -134,6 +142,33 @@ class EnvelopeForwarder
 
             return null;
         });
+    }
+
+    private function createBrowser(?string $httpProxy, ?string $httpProxyAuthentication): Browser
+    {
+        if ($httpProxy === null) {
+            return new Browser();
+        }
+
+        $headers = [];
+
+        if ($httpProxyAuthentication !== null) {
+            $proxyParts = parse_url(strpos($httpProxy, '://') === false ? 'http://' . $httpProxy : $httpProxy);
+
+            if (\is_array($proxyParts) && (isset($proxyParts['user']) || isset($proxyParts['pass']))) {
+                throw new \InvalidArgumentException('Proxy credentials must be provided either in the proxy URL or through http proxy authentication, not both.');
+            }
+
+            $headers['Proxy-Authorization'] = 'Basic ' . base64_encode($httpProxyAuthentication);
+        }
+
+        $proxy = new ProxyConnector($httpProxy, null, $headers);
+        $connector = new Connector([
+            'tcp' => $proxy,
+            'dns' => false,
+        ]);
+
+        return new Browser($connector);
     }
 
     private function getRateLimiter(Dsn $dsn): RateLimiter

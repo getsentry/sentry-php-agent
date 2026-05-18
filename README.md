@@ -48,15 +48,18 @@ vendor/bin/sentry-agent
 
 #### Configuration
 
-```php
-vendor/bin/sentry-agent [listen_address] [listen_port] [upstream_timeout] [upstream_concurrency] [queue_limit]
+```bash
+vendor/bin/sentry-agent [options]
 ```
 
-- `listen_address`, defaults to `127.0.0.1`
-- `listen_port`, defaults to `5148`
-- `upstream_timeout`, defaults to `2.0` seconds
-- `upstream_concurrency`, defaults to `10`
-- `queue_limit`, the amount of envelopes to keep in memory, defaults to `1000`
+- `--listen=ADDRESS`, defaults to `127.0.0.1:5148`
+- `--upstream-timeout=SECONDS`, defaults to `2.0` seconds
+- `--upstream-concurrency=REQUESTS`, defaults to `10`
+- `--queue-limit=ENVELOPES`, the amount of envelopes to keep in memory, defaults to `1000`
+- `--drain-timeout=SECONDS`, defaults to `10.0` seconds
+- `--control-server=ADDRESS`, enables the HTTP control server on the specified address
+- `--http-proxy=URL`, forwards upstream envelope requests through an HTTP CONNECT proxy
+- `--http-proxy-authentication=AUTH`, credentials for proxy basic authentication in `username:password` format
 
 ## License
 
