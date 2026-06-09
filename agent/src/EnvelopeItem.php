@@ -16,8 +16,7 @@ use Sentry\Util\JSON;
  */
 class EnvelopeItem
 {
-    public const TRANSPORT_KEY = 'sentry.transport';
-    public const TRANSPORT_VALUE = 'php-agent';
+    public const TRANSPORT_KEY = 'sentry.php.agent';
 
     /**
      * @var EnvelopeItemHeader The envelope item header
@@ -103,7 +102,7 @@ class EnvelopeItem
             $payload['tags'] = [];
         }
 
-        $payload['tags'][self::TRANSPORT_KEY] = self::TRANSPORT_VALUE;
+        $payload['tags'][self::TRANSPORT_KEY] = true;
 
         return $payload;
     }
@@ -117,8 +116,8 @@ class EnvelopeItem
     {
         foreach ($payload['items'] ?? [] as $index => $item) {
             $item['attributes'][self::TRANSPORT_KEY] = [
-                'type' => 'string',
-                'value' => self::TRANSPORT_VALUE,
+                'type' => 'bool',
+                'value' => true,
             ];
 
             $payload['items'][$index] = $item;
