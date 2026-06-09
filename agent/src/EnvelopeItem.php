@@ -55,16 +55,16 @@ class EnvelopeItem
     public function prepareForForwarding(string $client): void
     {
         try {
-            switch ($this->header['type'] ?? '') {
+            switch ($this->header['type']) {
                 case 'event':
                 case 'transaction':
-                    /** @var array $payload */
+                    /** @var array<array-key, mixed> $payload */
                     $payload = JSON::decode($this->data);
                     $payload = self::addIngestPathAndTransportTag($payload, $client);
                     break;
                 case 'log':
                 case 'trace_metric':
-                    /** @var array $payload */
+                    /** @var array<array-key, mixed> $payload */
                     $payload = JSON::decode($this->data);
                     $payload = self::addTransportAttributeToItems($payload);
                     break;
