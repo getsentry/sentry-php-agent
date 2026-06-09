@@ -58,11 +58,15 @@ class EnvelopeItem
             switch ($this->header['type'] ?? '') {
                 case 'event':
                 case 'transaction':
-                    $payload = self::addIngestPathAndTransportTag(JSON::decode($this->data), $client);
+                    /** @var array $payload */
+                    $payload = JSON::decode($this->data);
+                    $payload = self::addIngestPathAndTransportTag($payload, $client);
                     break;
                 case 'log':
                 case 'trace_metric':
-                    $payload = self::addTransportAttributeToItems(JSON::decode($this->data));
+                    /** @var array $payload */
+                    $payload = JSON::decode($this->data);
+                    $payload = self::addTransportAttributeToItems($payload);
                     break;
                 default:
                     return;
