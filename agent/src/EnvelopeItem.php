@@ -16,10 +16,8 @@ use Sentry\Util\JSON;
  */
 class EnvelopeItem
 {
-    private const EVENT_ITEM_TYPES_WITH_INGEST_PATH = [
-        'event' => true,
-        'transaction' => true,
-    ];
+    public const TRANSPORT_KEY = 'sentry.transport';
+    public const TRANSPORT_VALUE = 'php-agent';
 
     /**
      * @var EnvelopeItemHeader The envelope item header
@@ -54,27 +52,22 @@ class EnvelopeItem
         return $this->data;
     }
 
-    public function appendIngestPath(string $version): void
+    public function prepareForForwarding(string $client): void
     {
-        if (!isset(self::EVENT_ITEM_TYPES_WITH_INGEST_PATH[$this->header['type']])) {
-            return;
-        }
-
-        $payload = json_decode($this->data, true);
-
-        if (!\is_array($payload)) {
-            return;
-        }
-
-        if (!isset($payload['ingest_path']) || !\is_array($payload['ingest_path'])) {
-            $payload['ingest_path'] = [];
-        }
-
-        $payload['ingest_path'][] = [
-            'version' => $version,
-        ];
-
         try {
+            switch ($this->header['type'] ?? '') {
+                case 'event':
+                case 'transaction':
+                    $payload = self::addIngestPathAndTransportTag(JSON::decode($this->data), $client);
+                    break;
+                case 'log':
+                case 'trace_metric':
+                    $payload = self::addTransportAttributeToItems(JSON::decode($this->data));
+                    break;
+                default:
+                    return;
+            }
+
             $data = JSON::encode($payload);
         } catch (\Throwable $e) {
             return;
@@ -85,6 +78,49 @@ class EnvelopeItem
         if (isset($this->header['length'])) {
             $this->header['length'] = \strlen($this->data);
         }
+    }
+
+    /**
+     * @param array<array-key, mixed> $payload
+     *
+     * @return array<array-key, mixed>
+     */
+    private static function addIngestPathAndTransportTag(array $payload, string $client): array
+    {
+        if (!isset($payload['ingest_path']) || !\is_array($payload['ingest_path'])) {
+            $payload['ingest_path'] = [];
+        }
+
+        $payload['ingest_path'][] = [
+            'version' => $client,
+        ];
+
+        if (!isset($payload['tags']) || !\is_array($payload['tags'])) {
+            $payload['tags'] = [];
+        }
+
+        $payload['tags'][self::TRANSPORT_KEY] = self::TRANSPORT_VALUE;
+
+        return $payload;
+    }
+
+    /**
+     * @param array<array-key, mixed> $payload
+     *
+     * @return array<array-key, mixed>
+     */
+    private static function addTransportAttributeToItems(array $payload): array
+    {
+        foreach ($payload['items'] ?? [] as $index => $item) {
+            $item['attributes'][self::TRANSPORT_KEY] = [
+                'type' => 'string',
+                'value' => self::TRANSPORT_VALUE,
+            ];
+
+            $payload['items'][$index] = $item;
+        }
+
+        return $payload;
     }
 
     public function __toString()

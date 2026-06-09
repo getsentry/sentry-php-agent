@@ -92,7 +92,7 @@ class EnvelopeForwarder
         }
 
         $client = self::IDENTIFIER . '/' . self::VERSION;
-        $envelope->appendIngestPath($client);
+        $envelope->prepareForForwarding($client);
 
         $authHeader = [
             'sentry_version=' . self::PROTOCOL_VERSION,
