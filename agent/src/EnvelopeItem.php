@@ -102,7 +102,7 @@ class EnvelopeItem
             $payload['tags'] = [];
         }
 
-        $payload['tags'][self::TRANSPORT_KEY] = "true";
+        $payload['tags'][self::TRANSPORT_KEY] = 'true';
 
         return $payload;
     }
