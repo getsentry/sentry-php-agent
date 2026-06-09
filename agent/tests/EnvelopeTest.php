@@ -65,7 +65,7 @@ class EnvelopeTest extends TestCase
         $payload = json_decode($envelope->getItems()[0]->getData(), true);
 
         $this->assertSame([['version' => $this->getIngestPathVersion()]], $payload['ingest_path']);
-        $this->assertSame(true, $payload['tags'][EnvelopeItem::TRANSPORT_KEY]);
+        $this->assertSame("true", $payload['tags'][EnvelopeItem::TRANSPORT_KEY]);
     }
 
     public function testPrepareForForwardingPreservesExistingIngestPathAndTags(): void
@@ -94,7 +94,7 @@ class EnvelopeTest extends TestCase
         $this->assertSame(
             [
                 'release_channel' => 'beta',
-                EnvelopeItem::TRANSPORT_KEY => true,
+                EnvelopeItem::TRANSPORT_KEY => "true",
             ],
             $payload['tags']
         );
@@ -112,7 +112,7 @@ class EnvelopeTest extends TestCase
         $payload = json_decode($envelope->getItems()[0]->getData(), true);
 
         $this->assertSame([['version' => $this->getIngestPathVersion()]], $payload['ingest_path']);
-        $this->assertSame([EnvelopeItem::TRANSPORT_KEY => true], $payload['tags']);
+        $this->assertSame([EnvelopeItem::TRANSPORT_KEY => "true"], $payload['tags']);
     }
 
     public function testPrepareForForwardingUpdatesLengthHeader(): void
