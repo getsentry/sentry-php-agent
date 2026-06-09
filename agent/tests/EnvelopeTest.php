@@ -65,7 +65,7 @@ class EnvelopeTest extends TestCase
         $payload = json_decode($envelope->getItems()[0]->getData(), true);
 
         $this->assertSame([['version' => $this->getIngestPathVersion()]], $payload['ingest_path']);
-        $this->assertSame(EnvelopeItem::TRANSPORT_VALUE, $payload['tags'][EnvelopeItem::TRANSPORT_KEY]);
+        $this->assertSame(true, $payload['tags'][EnvelopeItem::TRANSPORT_KEY]);
     }
 
     public function testPrepareForForwardingPreservesExistingIngestPathAndTags(): void
@@ -94,7 +94,7 @@ class EnvelopeTest extends TestCase
         $this->assertSame(
             [
                 'release_channel' => 'beta',
-                EnvelopeItem::TRANSPORT_KEY => EnvelopeItem::TRANSPORT_VALUE,
+                EnvelopeItem::TRANSPORT_KEY => true,
             ],
             $payload['tags']
         );
@@ -112,7 +112,7 @@ class EnvelopeTest extends TestCase
         $payload = json_decode($envelope->getItems()[0]->getData(), true);
 
         $this->assertSame([['version' => $this->getIngestPathVersion()]], $payload['ingest_path']);
-        $this->assertSame([EnvelopeItem::TRANSPORT_KEY => EnvelopeItem::TRANSPORT_VALUE], $payload['tags']);
+        $this->assertSame([EnvelopeItem::TRANSPORT_KEY => true], $payload['tags']);
     }
 
     public function testPrepareForForwardingUpdatesLengthHeader(): void
@@ -147,11 +147,11 @@ class EnvelopeTest extends TestCase
 
         $this->assertSame('production', $payload['items'][0]['attributes']['sentry.environment']['value']);
         $this->assertSame(
-            ['type' => 'string', 'value' => EnvelopeItem::TRANSPORT_VALUE],
+            ['type' => 'bool', 'value' => true],
             $payload['items'][0]['attributes'][EnvelopeItem::TRANSPORT_KEY]
         );
         $this->assertSame(
-            ['type' => 'string', 'value' => EnvelopeItem::TRANSPORT_VALUE],
+            ['type' => 'bool', 'value' => true],
             $payload['items'][1]['attributes'][EnvelopeItem::TRANSPORT_KEY]
         );
     }
@@ -174,7 +174,7 @@ class EnvelopeTest extends TestCase
 
         $this->assertSame('millisecond', $payload['items'][0]['attributes']['unit']['value']);
         $this->assertSame(
-            ['type' => 'string', 'value' => EnvelopeItem::TRANSPORT_VALUE],
+            ['type' => 'bool', 'value' => true],
             $payload['items'][0]['attributes'][EnvelopeItem::TRANSPORT_KEY]
         );
     }
