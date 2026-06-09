@@ -68,7 +68,7 @@ Options:
 HELP;
 }
 
-$options = getopt('h', ['listen::', 'upstream-timeout::', 'upstream-concurrency::', 'queue-limit::', 'drain-timeout::', 'control-server::', 'http-proxy::', 'http-proxy-authentication::', 'help']);
+$options = getopt('hv', ['listen::', 'upstream-timeout::', 'upstream-concurrency::', 'queue-limit::', 'drain-timeout::', 'control-server::', 'http-proxy::', 'http-proxy-authentication::', 'help', 'verbose']);
 
 if ($options === false) {
     Log::error('Failed to parse command line options.');

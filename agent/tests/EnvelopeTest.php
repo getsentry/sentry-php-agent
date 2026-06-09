@@ -53,33 +53,34 @@ class EnvelopeTest extends TestCase
         $this->assertEquals($payload, (string) $envelope);
     }
 
-    public function testAppendIngestPathToEventItem(): void
+    public function testPrepareForForwardingAddsIngestPathAndTransportTagToEventItem(): void
     {
         $envelope = new Envelope(
             ['dsn' => 'http://public@example.com/1'],
             [new EnvelopeItem(['type' => 'event'], '{"message":"test"}')]
         );
 
-        $envelope->appendIngestPath($this->getIngestPathVersion());
+        $envelope->prepareForForwarding($this->getIngestPathVersion());
 
         $payload = json_decode($envelope->getItems()[0]->getData(), true);
 
         $this->assertSame([['version' => $this->getIngestPathVersion()]], $payload['ingest_path']);
+        $this->assertSame("true", $payload['tags'][EnvelopeItem::TRANSPORT_KEY]);
     }
 
-    public function testAppendIngestPathPreservesExistingEntries(): void
+    public function testPrepareForForwardingPreservesExistingIngestPathAndTags(): void
     {
         $envelope = new Envelope(
             ['dsn' => 'http://public@example.com/1'],
             [
                 new EnvelopeItem(
                     ['type' => 'transaction'],
-                    '{"transaction":"/test","ingest_path":[{"version":"relay/1.0.0","public_key":"abc"}]}'
+                    '{"transaction":"/test","ingest_path":[{"version":"relay/1.0.0","public_key":"abc"}],"tags":{"release_channel":"beta"}}'
                 ),
             ]
         );
 
-        $envelope->appendIngestPath($this->getIngestPathVersion());
+        $envelope->prepareForForwarding($this->getIngestPathVersion());
 
         $payload = json_decode($envelope->getItems()[0]->getData(), true);
 
@@ -90,58 +91,126 @@ class EnvelopeTest extends TestCase
             ],
             $payload['ingest_path']
         );
+        $this->assertSame(
+            [
+                'release_channel' => 'beta',
+                EnvelopeItem::TRANSPORT_KEY => "true",
+            ],
+            $payload['tags']
+        );
     }
 
-    public function testAppendIngestPathUpdatesLengthHeader(): void
+    public function testPrepareForForwardingReplacesInvalidTags(): void
+    {
+        $envelope = new Envelope(
+            ['dsn' => 'http://public@example.com/1'],
+            [new EnvelopeItem(['type' => 'event'], '{"message":"test","ingest_path":"invalid","tags":"invalid"}')]
+        );
+
+        $envelope->prepareForForwarding($this->getIngestPathVersion());
+
+        $payload = json_decode($envelope->getItems()[0]->getData(), true);
+
+        $this->assertSame([['version' => $this->getIngestPathVersion()]], $payload['ingest_path']);
+        $this->assertSame([EnvelopeItem::TRANSPORT_KEY => "true"], $payload['tags']);
+    }
+
+    public function testPrepareForForwardingUpdatesLengthHeader(): void
     {
         $envelope = new Envelope(
             ['dsn' => 'http://public@example.com/1'],
             [new EnvelopeItem(['type' => 'event', 'length' => 18], '{"message":"test"}')]
         );
 
-        $envelope->appendIngestPath($this->getIngestPathVersion());
+        $envelope->prepareForForwarding($this->getIngestPathVersion());
 
         $item = $envelope->getItems()[0];
 
         $this->assertSame(\strlen($item->getData()), $item->getHeader()['length']);
     }
 
-    public function testAppendIngestPathReplacesInvalidExistingIngestPath(): void
+    public function testPrepareForForwardingAddsTransportAttributeToLogItems(): void
     {
         $envelope = new Envelope(
             ['dsn' => 'http://public@example.com/1'],
-            [new EnvelopeItem(['type' => 'event'], '{"message":"test","ingest_path":"invalid"}')]
+            [
+                new EnvelopeItem(
+                    ['type' => 'log'],
+                    '{"items":[{"body":"first","attributes":{"sentry.environment":{"type":"string","value":"production"}}},{"body":"second","attributes":[]}]}'
+                ),
+            ]
         );
 
-        $envelope->appendIngestPath($this->getIngestPathVersion());
+        $envelope->prepareForForwarding($this->getIngestPathVersion());
 
         $payload = json_decode($envelope->getItems()[0]->getData(), true);
 
-        $this->assertSame([['version' => $this->getIngestPathVersion()]], $payload['ingest_path']);
+        $this->assertSame('production', $payload['items'][0]['attributes']['sentry.environment']['value']);
+        $this->assertSame(
+            ['type' => 'bool', 'value' => true],
+            $payload['items'][0]['attributes'][EnvelopeItem::TRANSPORT_KEY]
+        );
+        $this->assertSame(
+            ['type' => 'bool', 'value' => true],
+            $payload['items'][1]['attributes'][EnvelopeItem::TRANSPORT_KEY]
+        );
     }
 
-    public function testAppendIngestPathDoesNotMutateUnsupportedItems(): void
+    public function testPrepareForForwardingAddsTransportAttributeToTraceMetricItems(): void
     {
-        foreach (['log', 'check_in', 'profile', 'attachment'] as $type) {
+        $envelope = new Envelope(
+            ['dsn' => 'http://public@example.com/1'],
+            [
+                new EnvelopeItem(
+                    ['type' => 'trace_metric'],
+                    '{"items":[{"name":"foo","attributes":{"unit":{"type":"string","value":"millisecond"}}}]}'
+                ),
+            ]
+        );
+
+        $envelope->prepareForForwarding($this->getIngestPathVersion());
+
+        $payload = json_decode($envelope->getItems()[0]->getData(), true);
+
+        $this->assertSame('millisecond', $payload['items'][0]['attributes']['unit']['value']);
+        $this->assertSame(
+            ['type' => 'bool', 'value' => true],
+            $payload['items'][0]['attributes'][EnvelopeItem::TRANSPORT_KEY]
+        );
+    }
+
+    public function testPrepareForForwardingDoesNotMutateUnsupportedItems(): void
+    {
+        $payloads = [
+            'check_in' => '{"check_in_id":"abc","monitor_slug":"job","status":"ok"}',
+            'profile' => '{"platform":"php","version":"1","client_sdk":{"name":"sentry.php","version":"4.0.0"}}',
+            'client_report' => '{"timestamp":1746542641,"discarded_events":[]}',
+            'session' => '{"sid":"abc","did":"x","started":"2025-01-01T00:00:00Z","status":"ok"}',
+            'replay_event' => '{"platform":"php","sdk":{"name":"sentry.php","version":"4.0.0"},"tags":{"foo":"bar"}}',
+            'replay_recording' => '{"items":[{"attributes":{"foo":{"type":"string","value":"bar"}}}]}',
+            'feedback' => '{"platform":"php","sdk":{"name":"sentry.php","version":"4.0.0"},"tags":{"foo":"bar"}}',
+        ];
+
+        foreach ($payloads as $type => $data) {
             $envelope = new Envelope(
                 ['dsn' => 'http://public@example.com/1'],
-                [new EnvelopeItem(['type' => $type], '{"message":"test"}')]
+                [new EnvelopeItem(['type' => $type], $data)]
             );
 
-            $envelope->appendIngestPath($this->getIngestPathVersion());
+            $envelope->prepareForForwarding($this->getIngestPathVersion());
 
-            $this->assertSame('{"message":"test"}', $envelope->getItems()[0]->getData());
+            $this->assertSame($data, $envelope->getItems()[0]->getData(), "Type {$type} should not be mutated");
         }
     }
 
-    public function testAppendIngestPathDoesNotMutateMalformedJson(): void
+    public function testPrepareForForwardingDoesNotMutateMalformedJson(): void
     {
         $envelope = new Envelope(
             ['dsn' => 'http://public@example.com/1'],
             [new EnvelopeItem(['type' => 'event'], '{"message":')]
         );
 
-        $envelope->appendIngestPath($this->getIngestPathVersion());
+        $envelope->prepareForForwarding($this->getIngestPathVersion());
 
         $this->assertSame('{"message":', $envelope->getItems()[0]->getData());
     }

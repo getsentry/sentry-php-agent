@@ -77,10 +77,10 @@ class Envelope
         );
     }
 
-    public function appendIngestPath(string $version): void
+    public function prepareForForwarding(string $client): void
     {
         foreach ($this->items as $item) {
-            $item->appendIngestPath($version);
+            $item->prepareForForwarding($client);
         }
     }
 

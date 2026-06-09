@@ -37,6 +37,7 @@ class AgentForwardingTest extends TestCase
             '"ingest_path":[{"version":"' . str_replace('/', '\/', EnvelopeForwarder::IDENTIFIER . '/' . EnvelopeForwarder::VERSION) . '"}]',
             $serverOutput['body']
         );
+        $this->assertStringContainsString('"sentry.php.agent":"true"', $serverOutput['body']);
 
         // Verify the correct headers were sent
         $this->assertArrayHasKey('X-Sentry-Auth', $serverOutput['headers']);
