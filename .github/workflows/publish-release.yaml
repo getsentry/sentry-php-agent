@@ -26,6 +26,14 @@ jobs:
       with:
         token: ${{ steps.token.outputs.token }}
         fetch-depth: 0
+        
+    - name: Setup PHP for Box
+      uses: shivammathur/setup-php@ec406be512d7077f68eed36e63f4d91bc006edc4 # v2.35.4
+      with:
+        php-version: '8.4'
+        tools: box
+        ini-values: phar.readonly=0
+        
     - name: Prepare release
       uses: getsentry/craft@f4889d04564e47311038ecb6b910fef6b6cf1363 # v2
       env:
