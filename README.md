@@ -12,12 +12,12 @@ _Bad software is everywhere, and we're tired of it. Sentry is on a mission to he
 
 # Official Sentry Agent for PHP
 
-> [!CAUTION]
-> The current state of this project is somewhere along the lines of pre-alpha.
-> We strongly recommend you to not run this in production.
-> During the `0.x` release cycle, we might introduce breaking changes at any time.
-
 ## Getting started
+
+### What is the Agent?
+
+The Agent is a sidecar to the PHP application that is meant to run on the same machine in order to
+accept outgoing HTTP requests to Sentry and send them asynchronously without blocking the main PHP script.
 
 ### Install
 
