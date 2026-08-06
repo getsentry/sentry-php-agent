@@ -43,12 +43,7 @@
     },
     "config": {
         "audit": {
-            "ignore": {
-                "PKSA-7qs6-zvnz-h66r": "Temporarily accepted to preserve PHP 7.2.0 compatibility.",
-                "PKSA-gm5x-j3mz-71n9": "Temporarily accepted to preserve PHP 7.2.0 compatibility.",
-                "PKSA-jj5t-2zs1-dcfm": "Temporarily accepted to preserve PHP 7.2.0 compatibility.",
-                "PKSA-vznr-tgp9-fd7d": "Temporarily accepted to preserve PHP 7.2.0 compatibility."
-            }
+            "ignore": ["PKSA-7qs6-zvnz-h66r", "PKSA-gm5x-j3mz-71n9", "PKSA-jj5t-2zs1-dcfm", "PKSA-vznr-tgp9-fd7d"]
         },
         "platform": {
             "php": "7.2.0"
