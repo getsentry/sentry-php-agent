@@ -1,8 +1,12 @@
-minVersion: 0.23.1
+minVersion: 3.9.0
 github:
   owner: getsentry
   repo: sentry-php-agent
-changelogPolicy: auto
+changelog:
+  policy: auto
+preReleaseCommand: bash scripts/bump-version.sh
+versioning:
+  policy: manual
 statusProvider:
   name: github
 artifactProvider:
